@@ -75,8 +75,7 @@ class GMAN(nn.Module):
     def forward(self, x, TE):
         D = self.K * self.d
         # input
-        x = self.feed_forward(x)
-
+        x = self.STE_emb(x, TE)
         # STE
         STE_P = []
 
