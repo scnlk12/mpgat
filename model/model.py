@@ -127,6 +127,7 @@ class STEmbedding(nn.Module):
         x = self.dropout(x)
         return x
 
+
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
         super(FeedForward, self).__init__()
@@ -168,7 +169,7 @@ class STAttBlock(nn.Module):
 
     def forward(self, x, STE, TE, lapMatrix, node_embedding):
         x_raw = x
-        HT1 = self.temporalAtt(x, STE, TE)
+        HT1 = self.temporalAtt(x, TE)
         HT1 = self.norm(HT1)
 
         HT2 = self.causal_inception(x.permute(0, 2, 1, 3), TE).transpose(1, 2)
@@ -497,27 +498,23 @@ class temporalAttention(nn.Module):
     return: [batch_size, num_step, N, K * d]
     '''
 
-    def __init__(self, K, d, mask=True):
+    def __init__(self, K, d, kernel_size=3, mask=True, dropout=0.1):
         super().__init__()
 
         self.K = K
         self.d = d
         self.mask = mask
 
-        # self.FC_Q = nn.Linear(K * d, K * d)
-        # self.FC_K = nn.Linear(K * d, K * d)
-        # self.FC_V = nn.Linear(K * d, K * d)
-        self.FC_Q = FeedForward([K * d, K * d])
-        self.FC_K = FeedForward([K * d, K * d])
-        self.FC_V = FeedForward([K * d, K * d])
+        # 单层线性层
+        self.FC_Q = nn.Linear(K * d, K * d)
+        self.FC_K = nn.Linear(K * d, K * d)
+        self.FC_V = nn.Linear(K * d, K * d)
 
-        self.FC_Q4HT = FeedForward([2, K * d])
-        self.FC_K4HT = FeedForward([2, K * d])
-        self.FC_V4HT = FeedForward([2, K * d])
+        self.FC_Q4HT = nn.Linear(2, K * d)
+        self.FC_K4HT = nn.Linear(2, K * d)
+        self.FC_V4HT = nn.Linear(2, K * d)
 
-        # pems04 
-        kernel_size = 3
-
+        self.kernel_size = kernel_size
         self.padding = (kernel_size - 1) // 2
 
         # self.conv1Ds_aware_temporal_context = clones(nn.Conv2d(K * d, K * d, (1, kernel_size), padding=(0, self.padding)), 2)  # # 2 causal conv: 1  for query, 1 for key
@@ -526,107 +523,68 @@ class temporalAttention(nn.Module):
             nn.Conv2d(K * d, K * d, (1, kernel_size), padding=(0, self.padding))
         ])
 
-        dropout = 0.1
-
+        # pre-norm
         self.norm1 = nn.LayerNorm(K * d)
-
-        self.dropout = nn.Dropout(p=dropout)
-
-        self.two_layer_feed_forward = nn.Sequential(
-            nn.Linear(K * d, self.K * self.d),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.K * self.d, self.K * self.d),
-        )
-
         self.norm2 = nn.LayerNorm(K * d)
 
-        # self-attention 和 temb 融合
-        self.mlp = nn.Sequential(
-            nn.Linear(24, K * d),
+        # 多头合并
+        self.out_proj = nn.Linear(self.D, self.D)
+
+        self.two_layer_feed_forward = nn.Sequential(
+            nn.Linear(K * d, 4 * self.K * self.d),
             nn.ReLU(),
-            nn.Linear(K * d, 2)  # 输出两个权重
+            nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
-    def forward(self, x, STE, TE):
-        D = self.K * self.d
+        self.attn_dropout = nn.Dropout(dropout)
+        self.proj_dropout = nn.Dropout(dropout)
 
+    def forward(self, x, TE, use_te=True):
         x_raw = x
-        batch_size = x.shape[0]
-        b, L, n, d = x.shape
+        B, T, N, D = x.shape
+        assert D == self.D, f"last dim D must equal K*d ({self.D}), got {D}"
+        # pre-norm
+        x = self.norm1(x)
 
         query = self.FC_Q(x)
-
-        # key 和 value要改掉
         key = self.FC_K(x)
         value = self.FC_V(x)
+
+        # TE (B, T, N, 2) -> (B, N, T, 2)
+        query4HT = self.FC_Q4HT(TE)
+        key4HT = self.FC_K4HT(TE)
+
+        # 时间编码
+        if use_te:
+            query += query4HT
+            key += key4HT
 
         for conv in self.conv1Ds_aware_temporal_context:
             query = conv(query.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
             key = conv(key.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+        # 多头
+        query = query.view(B, T, N, self.K, self.d)
+        key = key.view(B, T, N, self.K, self.d)
+        value = value.view(B, T, N, self.K, self.d)
+        query = query.permute(0, 2, 3, 1, 4).contiguous().view(B * N * self.K, T, self.d)
+        key = key.permute(0, 2, 3, 1, 4).contiguous().view(B * N * self.K, T, self.d).transpose(-2, -1)
+        value = value.permute(0, 2, 3, 1, 4).contiguous().view(B * N * self.K, T, self.d)
 
-        query = torch.concat(torch.split(query, self.K, dim=-1), dim=0)
-        key = torch.concat(torch.split(key, self.K, dim=-1), dim=0)
-        value = torch.concat(torch.split(value, self.K, dim=-1), dim=0)
-
-        query = query.transpose(1, 2)
-        key = key.transpose(1, 2).transpose(2, 3)
-        value = value.transpose(1, 2)
-
-        query4HT = self.FC_Q4HT(TE.transpose(1, 2))
-        key4HT = self.FC_K4HT(TE.transpose(1, 2))
-
-        query4HT = torch.concat(torch.split(query4HT, self.K, dim=-1), dim=0)
-        key4HT = torch.concat(torch.split(key4HT, self.K, dim=-1), dim=0)
-        # value4HT = self.FC_V4HT(TE.transpose(1, 2))
-        # print("query4HT.size()", query4HT.shape)
-        # print("key4HT.shape", key4HT.shape)
-        key4HT = key4HT.transpose(2, 3)
-
-        now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-
-        attention = torch.matmul(query, key)
-        attention /= (self.d ** 0.5)
-
-        # attention4HT = torch.matmul(query4HT, key4HT)
-        attention4HT = torch.matmul(query4HT, key)
-        attention4HT /= (self.d ** 0.5)
-
-        # print("attention.shape", attention.shape)
-        # print("attention4HT.shape", attention4HT.shape)
-
-        # num_step = x.shape[1]
-        # mask = torch.ones(num_step, num_step, dtype=bool, device=query.device).tril()
-        # attention = attention.masked_fill_(~mask, -torch.inf)
-
-        # mask attention score
-        # if self.mask:
-        #     num_step = x.shape[1]
-        #     mask = torch.ones(num_step, num_step, dtype=bool, device=query.device).tril()
-        #     attention = attention.masked_fill_(~mask, -torch.inf)
-        # 1. 点积
-        # attention = attention * attention4HT
-        # 2. 求和
-        # attention = torch.add(attention, attention4HT)
-        # 3. mlp求权值
-        # combined = torch.cat((attention, attention4HT), dim=-1)  # 拼接
-        # print("combined.shape", combined.shape)
-        # weights = torch.softmax(self.mlp(combined), dim=-1)       # 生成权重
-        # print("weights.shape", weights.shape)
-        # attention = weights[..., 0].unsqueeze(-1) * attention + weights[..., 1].unsqueeze(-1) * attention4HT
-
+        attention = torch.matmul(query, key) / math.sqrt(self.d)
         attention = torch.softmax(attention, dim=-1)
-        attention = self.dropout(attention)
+        # attention (B * N * K * T, B * N * K * T) value (B * N * K * T, d)
+        attention = self.attn_dropout(attention)
+        # out (B * N * K * T, d)
+        out = torch.matmul(attention, value)
+        out = out.view(B, N, self.K, T, self.d).permute(0, 3, 1, 2, 4).contiguous().view(B, T, N, self.K * self.d)
+        # output linear projection and dropout
+        x1 = self.out_proj(out)
+        x1 = self.proj_dropout(x1)
+        # add
+        x1 = x_raw + x1
 
-        x = torch.matmul(attention, value)
-        x = x.transpose(1, 2)
-        x = torch.concat(torch.split(x, batch_size, dim=0), dim=-1)
-        x = x + x_raw
-        x1 = self.norm1(x)
-
-        x = self.two_layer_feed_forward(x1)
-        x = self.norm2(x1 + x)
-
-        return x
+        # y = x + FFN( LN(x) )
+        return x1 + self.two_layer_feed_forward(self.norm2(x1))
 
 
 class gatedFusion(nn.Module):

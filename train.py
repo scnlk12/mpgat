@@ -188,7 +188,7 @@ def train_one_epoch(
 
         # TE (B, T, N, 2) 
         # x_batch (B, P, N, F) y_batch (B, Q, N, F)
-        # TE (B, P + Q, N, 2)
+        # TE (B, P, N, 2)
         # TE = torch.cat((x_batch[:, :, :, 1:], y_batch[:, :, :, 1:]), dim=1)
         TE = x_batch[:, :, :, 1:]
 
