@@ -51,7 +51,7 @@ class GMAN(nn.Module):
         )
 
         # 网络结构
-        self.STE_emb = STEmbedding(model_dim, K, d, lap_mx)
+        self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, T)
         self.ST_Att = nn.ModuleList(
             [
                 STAttBlock(K, d, LAP)
@@ -95,76 +95,38 @@ class GMAN(nn.Module):
 
 
 class STEmbedding(nn.Module):
-    def __init__(self, model_dim, K, d, lap_mx, drop=0.):
+    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.):
         super().__init__()
         self.K = K
         self.d = d
         self.lap_mx = lap_mx
 
-        lape_dim = 32
-
         self.x_forward = nn.Sequential(
             nn.Linear(self.K * self.d, self.K * self.d),
+            nn.LayerNorm(self.K * self.d),
             nn.ReLU(inplace=True),
             nn.Linear(self.K * self.d, self.K * self.d),
+            nn.LayerNorm(self.K * self.d),
         )
 
-        # self.spatial_embedding = LaplacianPE(lape_dim, self.K * self.d)
-        # self.se_forward = FC(input_dims=[self.K * self.d, self.K * self.d], units=[self.K * self.d, self.K * self.d], activations=[F.relu, None])
-
-        # self.te_forward = nn.Sequential(
-        #     nn.Linear(48, self.K * self.d),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(self.K * self.d, self.K * self.d),
-        # )
-        # self.te_forward = FC(input_dims=[48, self.K * self.d], units=[self.K * self.d, self.K * self.d], activations=[F.relu, None])
-
-        # self.tod_embedding = nn.Embedding(288, 24)
-        # self.dow_embedding = nn.Embedding(7, 24)
-
-        # self.tem_embedding = TemEmbedding(self.K * self.d)
-
-        # Ea (STAEformer论文)
+        # Ea (STAEformer论文) 感觉类似位置编码
         self.adaptive_embedding = nn.init.xavier_uniform_(
-            nn.Parameter(torch.empty(12, 358, self.K * self.d))
+            nn.Parameter(torch.empty(time_step, num_node, self.K * self.d))
         )
-
-        # 位置编码 positional embedding 
-        # self.position_encoding = PositionalEncoding(self.K * self.d)
 
         self.dropout = nn.Dropout(drop)
 
-        # self.linear_emb = nn.Linear(4 * self.K * self.d, self.K * self.d)
-
     def forward(self, x, TE):
-        # return torch.add(torch.add(self.SE, TE), adp_emb)
-        # one-hot编码方式
-        # TE = self.tem_embedding(TE)
-
         B, T, N, D = TE.shape
-        # Ea 
-        # adp_emb = self.adaptive_embedding.expand(
-        #         size=(B, *self.adaptive_embedding.shape)
-        #     )  # (batch_size, in_steps, num_nodes, adaptive_embedding_dim)
-
         # Ea
         adp_emb = self.adaptive_embedding.expand(
             size=(B, *self.adaptive_embedding.shape)
         )  # (batch_size, in_steps, num_nodes, adaptive_embedding_dim)
-
-        x_raw = x
         x = self.x_forward(x)
-
-        # x += self.position_encoding(x_raw)
-        # x += self.SE
-        # 时间（周期）编码 + 空间编码（节点Laplacian结构）+ 时空adaptive embedding
+        # 时空adaptive embedding 类似于位置编码
         x += adp_emb
-        # x += self.spatial_embedding(self.lap_mx)
-        # x += TE
         x = self.dropout(x)
-
         return x
-
 
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
