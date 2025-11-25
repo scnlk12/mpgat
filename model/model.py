@@ -176,33 +176,6 @@ class LaplacianPE(nn.Module):
         return lap_pos_enc
 
 
-class TemEmbedding(nn.Module):
-    def __init__(self, D):
-        super(TemEmbedding, self).__init__()
-        self.ff_te = FeedForward([295, D, D])
-
-    def forward(self, TE, T=288):
-        '''
-        TE: [B, T, N, 2]
-        return: [B, T, N, D]
-        '''
-        B, Times, N, D = TE.shape
-        TE = TE[:, :, 0, :]
-        # temporal embedding
-        dayofweek = torch.empty(TE.shape[0], TE.shape[1], 7).to(TE.device)  # [B,T,7]
-        timeofday = torch.empty(TE.shape[0], TE.shape[1], T).to(TE.device)  # [B,T,288]
-        for i in range(TE.shape[0]):
-            dayofweek[i] = F.one_hot(TE[..., 0][i].to(torch.int64) % 7, 7)
-        for j in range(TE.shape[0]):
-            timeofday[j] = F.one_hot(TE[..., 1][j].to(torch.int64) % 288, T)
-        TE = torch.cat((dayofweek, timeofday), dim=-1)  # [B,T,295]
-        TE = TE.unsqueeze(dim=2)  # [B,T,1,295]
-        TE = TE.repeat(1, 1, N, 1)
-        TE = self.ff_te(TE)  # [B,T,1,F]
-
-        return TE  # [B,T,N,F]
-
-
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
         super(FeedForward, self).__init__()
