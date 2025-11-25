@@ -166,16 +166,6 @@ class STEmbedding(nn.Module):
         return x
 
 
-class LaplacianPE(nn.Module):
-    def __init__(self, lape_dim, embed_dim):
-        super().__init__()
-        self.embedding_lap_pos_enc = nn.Linear(lape_dim, embed_dim)
-
-    def forward(self, lap_mx):
-        lap_pos_enc = self.embedding_lap_pos_enc(lap_mx).unsqueeze(0).unsqueeze(0)
-        return lap_pos_enc
-
-
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
         super(FeedForward, self).__init__()
