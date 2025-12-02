@@ -54,7 +54,7 @@ class GMAN(nn.Module):
         self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, T)
         self.ST_Att = nn.ModuleList(
             [
-                STAttBlock(K, d, LAP)
+                STAttBlock(K, d, LAP, num_node)
                 for _ in range(L)
             ]
         )
@@ -149,19 +149,17 @@ class FeedForward(nn.Module):
 
 
 class STAttBlock(nn.Module):
-    def __init__(self, K, d, L_tilde):
+    def __init__(self, K, d, L_tilde, num_node):
         super().__init__()
         self.K = K
         self.d = d
-
         self.L_tilde = L_tilde
+        self.num_node = num_node
 
         self.spatialAtt = spatialAttention(K, d)
         self.temporalAtt = temporalAttention(K, d)
-
+        self.causal_inception = Inception_Temporal_Layer(self.num_node, self.K * self.d, self.K * self.d, self.K * self.d)
         self.gated_fusion = gatedFusion(K * d)
-
-        self.causal_inception = Inception_Temporal_Layer(358, self.K * self.d, self.K * self.d, self.K * self.d)
 
     def forward(self, x, te, lap_matrix, node_embedding):
         x_raw = x
@@ -275,28 +273,35 @@ class spatialAttention(nn.Module):
 
 
 class Inception_Temporal_Layer(nn.Module):
-    def __init__(self, num_stations, In_channels, Hid_channels, Out_channels):
+    def __init__(self, num_stations, In_channels, Hid_channels, Out_channels, kernels=[2, 3, 6, 7]):
         super(Inception_Temporal_Layer, self).__init__()
 
-        self.conv = CausalConv1d(In_channels, In_channels, 1, dilation=1, groups=1)
-        # 改变下层卷积核和上层卷积核的大小 1 ✖️ 7 1 ✖️ 6 1 ✖️ 3 1 ✖️ 2
-        # 原卷积核大小为 1 ✖️ 3 1 ✖️ 2 1 ✖️ 2
-        self.temporal_conv1 = CausalConv1d(In_channels, Hid_channels, 7, dilation=1, groups=1)
-        # init.xavier_normal_(self.temporal_conv1.weight)
-
-        self.temporal_conv4 = CausalConv1d(Hid_channels, Hid_channels, 6, dilation=1, groups=1)
-
-        self.temporal_conv2 = CausalConv1d(Hid_channels, Hid_channels, 3, dilation=1, groups=1)
-        # init.xavier_normal_(self.temporal_conv2.weight)
-
-        self.temporal_conv3 = CausalConv1d(Hid_channels, Hid_channels, 2, dilation=1, groups=1)
-        # init.xavier_normal_(self.temporal_conv3.weight)
-
-        self.conv1_1 = CausalConv1d(5 * Hid_channels, Out_channels, 1, groups=1)
-
         self.num_stations = num_stations
-        self.act = nn.LeakyReLU(inplace=True)
+        self.act = nn.LeakyReLU()
         self.d = In_channels
+
+        self.conv = CausalConv1d(In_channels, In_channels, 1, dilation=1, groups=1)
+
+        # Multi-scale branches
+        self.branches = nn.ModuleList([
+            nn.Sequential(-+
+                CausalConv1d(Hid_channels, Hid_channels, k),
+                nn.LeakyReLU()
+            )
+            for k in kernels
+        ])
+
+        # Fuse multi-branch output (depthwise 1×1 conv is cleaner)
+        self.merge = nn.Conv2d(
+            in_channels=1 + len(kernels),  # depth dimension (branches)
+            out_channels=1,
+            kernel_size=(1, 1),
+            groups=1,
+            bias=False
+        )
+
+        # self.conv1_1 = CausalConv1d(5 * Hid_channels, Out_channels, 1, groups=1)
+        self.projection = nn.Linear(d_model, d_model)
 
         self.FC_Q = FeedForward([In_channels, In_channels])
         self.FC_K = FeedForward([In_channels, In_channels])
@@ -332,29 +337,18 @@ class Inception_Temporal_Layer(nn.Module):
         x1 = self.norm1(x)
 
         # (Batch_size, Number_Station, Seq_len, In_channel)
-        B, N, T, _ = inputs.shape
+        B, N, T, C = inputs.shape
         inputs = inputs.reshape(B * N, T, -1).transpose(1, 2)
-        # inputs = torch.stack([self.conv(inputs[:, s_i].transpose(1, 2)).transpose(1, 2)
-        #                         for s_i in range(self.num_stations)], dim=1)
         inputs = self.conv(inputs)
-        # output_1 = torch.stack([self.temporal_conv1(inputs[:, s_i].transpose(1, 2)).transpose(1, 2)
-        #                         for s_i in range(self.num_stations)], dim=1)
-        # output_1 = self.act(output_1)
-        output_1 = self.temporal_conv1(inputs)
-        output_1 = self.act(output_1)
+        # ---- multi-scale branches ----
+        outs = [branch(inputs) for branch in self.branches]
+        outputs = torch.stack([inputs] + outs, dim=1)
 
-        output_2 = self.temporal_conv2(inputs)
-        output_2 = self.act(output_2)
+        # ---- merge branches using Conv2d ----
+        merged = self.merge(outputs).squeeze(1)  # [B*N, C, T]
 
-        output_3 = self.temporal_conv3(inputs)
-        output_3 = self.act(output_3)
-
-        output_4 = self.temporal_conv4(inputs)
-        output_4 = self.act(output_4)
-
-        outputs = torch.cat([inputs, output_1, output_4, output_2, output_3], dim=-2)
-
-        outputs = self.conv1_1(outputs)
+        # ---- reshape back to [B, T, N, C] ----
+        merged = merged.transpose(1, 2).reshape(B, T, N, C)
         outputs = outputs.reshape(B, N, T, -1)
 
         return outputs + x1
