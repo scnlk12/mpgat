@@ -129,22 +129,21 @@ class STEmbedding(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, fea, res_ln=False):
+    def __init__(self, fea, residual_add=True):
         super(FeedForward, self).__init__()
-        self.res_ln = res_ln
+        self.residual_add = residual_add
         self.L = len(fea) - 1
         self.linear = nn.ModuleList([nn.Linear(fea[i], fea[i + 1]) for i in range(self.L)])
-        self.ln = nn.ModuleList([nn.LayerNorm(fea[i + 1]) for i in range(self.L)])
+        self.ln = nn.LayerNorm(fea[0])
 
     def forward(self, inputs):
         # x (B, T, 1, F)
-        x = inputs
+        x = self.ln(inputs)
         for i in range(self.L):
             x = self.linear[i](x)
-            x = self.ln[i](x)
             if i != self.L - 1:
                 x = F.relu(x)
-        if self.res_ln:
+        if self.residual_add:
             x += inputs
         return x
 
@@ -162,23 +161,17 @@ class STAttBlock(nn.Module):
 
         self.gated_fusion = gatedFusion(K * d)
 
-        # add & norm 
-        self.norm = nn.LayerNorm(K * d)
-
         self.causal_inception = Inception_Temporal_Layer(358, self.K * self.d, self.K * self.d, self.K * self.d)
 
-    def forward(self, x, STE, TE, lapMatrix, node_embedding):
+    def forward(self, x, te, lap_matrix, node_embedding):
         x_raw = x
-        HT1 = self.temporalAtt(x, TE)
-        HT1 = self.norm(HT1)
+        ht1 = self.temporalAtt(x, te)
+        ht2 = self.causal_inception(x.permute(0, 2, 1, 3), te).transpose(1, 2)
+        ht = self.gated_fusion(ht1, ht2)
 
-        HT2 = self.causal_inception(x.permute(0, 2, 1, 3), TE).transpose(1, 2)
-        HT2 = self.norm(HT2)
-        HT = self.gated_fusion(HT1, HT2)
+        hs = self.spatialAtt(ht, lap_matrix, node_embedding)
 
-        HS, _ = self.spatialAtt(HT, lapMatrix, node_embedding)
-
-        return torch.add(x_raw, HS)
+        return torch.add(x_raw, hs)
 
 
 class spatialAttention(nn.Module):
@@ -190,126 +183,94 @@ class spatialAttention(nn.Module):
     d: dimension of each attention head outputs
     return: [batch_size, num_step, N, K * d]
     '''
-
-    def weighted_k_hop_matrix(adj_matrix, k):
-        """
-        计算带权邻接矩阵的 k-hop 矩阵
-        :param adj_matrix: 带权邻接矩阵 (n x n)
-        :param k: hop 数
-        :return: k-hop 矩阵 (n x n)
-        """
-        result = np.linalg.matrix_power(adj_matrix, k)  # 计算 A^k
-        return result
-
-    def __init__(self, K, d):
+    def __init__(self, K, d, dropout=0.1):
         super().__init__()
         self.K = K
         self.d = d
 
-        # 1-alpha使用自身更新 
-        # self.alpha = 0.7
+        # 单线性层
+        self.FC_Q = nn.Linear(K * d, K * d)
+        self.FC_K = nn.Linear(K * d, K * d)
+        self.FC_V = nn.Linear(K * d, K * d)
 
-        # self.FC_Q = nn.Linear(K * d, K * d)
-        # self.FC_K = nn.Linear(K * d, K * d)
-        # self.FC_V = nn.Linear(K * d, K * d)
-        self.FC_Q = FeedForward([K * d, K * d])
-        self.FC_K = FeedForward([K * d, K * d])
-        self.FC_V = FeedForward([K * d, K * d])
+        # pre-norm
+        self.norm1 = nn.LayerNorm(K * d)
+        self.norm2 = nn.LayerNorm(K * d)
 
-        self.dropout = nn.Dropout(p=0.1)
+        # 可学习结构权重 alpha, beta
+        self.alpha = nn.Parameter(torch.tensor(1.0))
+        self.beta = nn.Parameter(torch.tensor(1.0))
 
-        # 自身更新
-        # self.FC_ii_V = nn.Linear(K * d, K * d)
-
-        # embed_dim = 64
-        # self.num_node = 358
-        # self.node_embeddings = nn.Parameter(torch.randn(358, 10), requires_grad=True)
+        # 多头合并
+        self.out_proj = nn.Linear(self.K * self.d, self.K * self.d)
 
         self.two_layer_feed_forward = nn.Sequential(
-            nn.Linear(K * d, self.K * self.d),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.K * self.d, self.K * self.d),
+            nn.Linear(K * d, 4 * self.K * self.d),
+            nn.ReLU(),
+            nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
-    def forward(self, x, lapmatrix, node_embeddings):
-        D = self.K * self.d
-        x_raw = x
-        # B, T, n, D = x.shape
+        self.attn_dropout = nn.Dropout(dropout)
+        self.proj_dropout = nn.Dropout(dropout)
 
-        batch_size = x.shape[0]
+    def forward(self, x, lapmatrix, node_embeddings, k=3):
+        x_raw = x
+        B, T, N, D = x.shape
+
+        x = self.norm1(x)
 
         query = self.FC_Q(x)
         key = self.FC_K(x)
         value = self.FC_V(x)
-        # value_ii = self.FC_ii_V(x)
 
-        query = torch.concat(torch.split(query, self.K, dim=-1), dim=0)
-        key = torch.concat(torch.split(key, self.K, dim=-1), dim=0)
-        value = torch.concat(torch.split(value, self.K, dim=-1), dim=0)
-        # value_ii = torch.concat(torch.split(value_ii, self.K, dim=-1), dim=0)
+        # 多头
+        query = query.view(B, T, N, self.K, self.d)
+        key = key.view(B, T, N, self.K, self.d)
+        value = value.view(B, T, N, self.K, self.d)
+        query = query.permute(0, 1, 3, 2, 4).contiguous().view(B * T * self.K, N, self.d)
+        key = key.permute(0, 1, 3, 2, 4).contiguous().view(B * T * self.K, N, self.d).transpose(-2, -1)
+        value = value.permute(0, 1, 3, 2, 4).contiguous().view(B * T * self.K, N, self.d)
 
-        key = key.transpose(2, 3)
-
-        attention = torch.matmul(query, key)
-        attention /= (self.d ** 0.5)
-
+        attention = torch.matmul(query, key) / math.sqrt(self.d)
+        raw = attention
         # mask (consider graph structure)
         # torch.mm 矩阵乘法
         supports = F.softmax(F.relu(torch.mm(node_embeddings, node_embeddings.transpose(0, 1))), dim=1)
-
         # 二值化support矩阵 （感觉可以改阈值）
         # supports = supports > 0.5
-        supports = supports.unsqueeze(0).unsqueeze(0)
+        supports = supports.unsqueeze(0).expand(B, -1, -1)
+        lap = lapmatrix.unsqueeze(0).expand(B, -1, -1)
 
-        k = 3
+        adj = (lapmatrix != 0).float()
+        mask = (adj == 0) * (-1e9)
+        mask = mask.unsqueeze(0).expand(B, -1, -1)
 
-        # print("lapmatrix.shape", lapmatrix.shape)
-        matrix = lapmatrix
-        lapmatrix = torch.tensor(lapmatrix.todense(),
-                                 device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')).unsqueeze(
-            0).unsqueeze(0)
-        lapmatrixk = torch.tensor(np.linalg.matrix_power(matrix.todense(), k),
-                                  device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')).unsqueeze(
-            0).unsqueeze(0)
+        supports = supports.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+        supports = supports.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+        lap = lap.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+        lap = lap.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+        mask = mask.unsqueeze(1).unsqueeze(2)
+        mask = mask.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
 
-        # attention = attention.masked_fill_(support_bool, -torch.inf)
+        # attentionS = attention * supports
+        # attentionL = attention * lap
+        # attention = attentionS + attentionL
+        # TODO logits = raw + self.alpha * attentionS + self.beta * attentionL + mask
+        logits = raw + self.alpha * supports + self.beta * lap + mask
 
-        # attention 增加两个邻接矩阵A 基于距离的A + AGCRN中的A tanh（ZZT） 以及他们的topK矩阵
-        # print("attention.shape", attention.shape)
-        # print("supports.shape", supports.shape)
-        # print("lapmatrix.shape", lapmatrix.shape)
-        # attention = attention * supports * lapmatrix * lapmatrixk
-        attentionS = attention * supports
-        attentionL = attention * lapmatrix
-        # attentionK = attention * lapmatrixk
-        # attention = attentionS + attentionK + attentionL
-        attention = attentionS + attentionL
+        attention = torch.softmax(logits, dim=-1)
+        attention = self.attn_dropout(attention)
 
-        attention = nn.Softmax(dim=-1)(attention)
-        # print('attention.size()', attention.size())
-        attention = self.dropout(attention)
-        attention = attention.float()
+        out = torch.matmul(attention, value)
+        out = out.view(B, T, self.K, N, self.d).permute(0, 1, 3, 2, 4).contiguous().view(B, T, N, self.K * self.d)
 
-        # attention_ii = torch.zeros(attention.shape[0], attention.shape[1], attention.shape[2], attention.shape[2],
-        #    device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))
+        x1 = self.out_proj(out)
+        x1 = self.proj_dropout(x1)
+        # add
+        x1 = x_raw + x1
 
-        # 创建对角线索引
-        # indices = torch.arange(attention.shape[2])
-
-        # 利用广播和高级索引填充对角线元素
-        # attention_ii[:, :, indices, indices] = (1 - self.alpha)
-
-        # x = self.alpha * torch.matmul(attention, value) + torch.matmul(attention_ii, value_ii)
-        x = torch.matmul(attention, value)
-        # g = torch.sigmoid(torch.matmul(attention, value) + value_ii)
-        # x = g * torch.matmul(attention, value) + (1 - g) * value_ii
-        x = torch.concat(torch.split(x, batch_size, dim=0), dim=-1)
-        x = self.two_layer_feed_forward(x)
-
-        attention = torch.concat(torch.split(attention, batch_size, dim=0), dim=1)
-
-        return torch.add(x, x_raw), attention
-
+        # y = x + FFN( LN(x) )
+        return x1 + self.two_layer_feed_forward(self.norm2(x1))
 
 # ASTGCN论文中的spatial gcn
 class cheb_conv_with_SAt(nn.Module):
@@ -528,7 +489,7 @@ class temporalAttention(nn.Module):
         self.norm2 = nn.LayerNorm(K * d)
 
         # 多头合并
-        self.out_proj = nn.Linear(self.D, self.D)
+        self.out_proj = nn.Linear(self.K * self.d, self.K * self.d)
 
         self.two_layer_feed_forward = nn.Sequential(
             nn.Linear(K * d, 4 * self.K * self.d),
@@ -600,59 +561,23 @@ class gatedFusion(nn.Module):
         super().__init__()
         self.D = D
 
-        # self.feed_forward = nn.Linear(D, D)
-
-        # self.FC_xs = FC(input_dims=D, units=D, activations=None)
         self.FC_HT1 = FeedForward([D, D])
-        # self.FC_xt = FC(input_dims=D, units=D, activations=None)
         self.FC_HT2 = FeedForward([D, D])
 
         self.gate = nn.Sequential(
             nn.Linear(2 * D, D),
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Linear(D, D),
         )
 
-        # 定义滤波器卷积和门控卷积
-        # self.filter_conv = nn.Conv1d(D * 2, D, kernel_size=1)
-        # self.gate_conv = nn.Conv1d(D * 2, D, kernel_size=1)
-
-        # self.two_layer_feed_forward = FC(input_dims=[D, D], units=[D, D], activations=[F.relu, None])
-
     def forward(self, HT1, HT2):
-        HT1 = self.FC_HT1(HT1)
-        # XS = self.FC_xs(XS)
-        HT2 = self.FC_HT2(HT2)
-        # XT = self.FC_xt(XT)
-
-        # z = torch.sigmoid(torch.add(XS, XT))
-        # H = torch.add(torch.multiply(z, XS), torch.multiply(1-z, XT))
-
+        # residual 结构保留原始信息
+        HT1 = HT1 + self.FC_HT1(HT1)
+        HT2 = HT2 + self.FC_HT2(HT2)
         concatenated = torch.cat((HT1, HT2), dim=-1)
-        # print('concatenated.shape', concatenated.shape)
-
-        # Compute gate value (sigmoid to get values between 0 and 1)
         gate_value = torch.sigmoid(self.gate(concatenated))
-
-        # Fuse inputs using the gate
         fused_output = gate_value * HT1 + (1 - gate_value) * HT2
-        # H = torch.cat((XS, XT), axis=-1)
-        # H = self.two_layer_feed_forward(H)
-
-        # # 滤波器卷积
-        # filter = self.filter_conv(concatenated)
-        # filter = torch.tanh(filter)  # 使用 Tanh 激活函数
-
-        # # 门控卷积
-        # gate = self.gate_conv(concatenated)
-        # gate = torch.sigmoid(gate)  # 使用 Sigmoid 激活函数
-
-        # # 门控融合 增加非线性
-        # fused_output = filter * gate  # 逐元素相乘
-
-        # return H
         return fused_output
-
 
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
