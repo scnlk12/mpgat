@@ -183,6 +183,7 @@ class spatialAttention(nn.Module):
     d: dimension of each attention head outputs
     return: [batch_size, num_step, N, K * d]
     '''
+
     def __init__(self, K, d, dropout=0.1):
         super().__init__()
         self.K = K
@@ -271,80 +272,6 @@ class spatialAttention(nn.Module):
 
         # y = x + FFN( LN(x) )
         return x1 + self.two_layer_feed_forward(self.norm2(x1))
-
-# ASTGCN论文中的spatial gcn
-class cheb_conv_with_SAt(nn.Module):
-    '''
-    K-order chebyshev graph convolution with Spatial Attention scores
-    '''
-
-    def __init__(self, num_of_filters, K, cheb_polynomials, **kwargs):
-        '''
-        Parameters
-        ----------
-        num_of_filters: int
-
-        num_of_features: int, num of input features
-
-        K: int, up K - 1 order chebyshev polynomials
-                will be used in this convolution
-
-        '''
-        super(cheb_conv_with_SAt, self).__init__(**kwargs)
-        self.K = K
-        self.num_of_filters = num_of_filters
-        self.cheb_polynomials = cheb_polynomials
-
-        # self.Theta = self.params.get('Theta', allow_deferred_init=True)
-
-    def forward(self, x, spatial_attention):
-        '''
-        Chebyshev graph convolution operation
-
-        Parameters
-        ----------
-        x: mx.ndarray, graph signal matrix
-           shape is (batch_size, N, F, T_{r-1}), F is the num of features
-
-        spatial_attention: mx.ndarray, shape is (batch_size, N, N)
-                           spatial attention scores
-
-        Returns
-        ----------
-        mx.ndarray, shape is (batch_size, N, self.num_of_filters, T_{r-1})
-
-        '''
-        (batch_size, num_of_vertices,
-         num_of_features, num_of_timesteps) = x.shape
-
-        Theta = torch.empty(self.K, num_of_features, 64)
-        nn.init.xavier_uniform_(Theta)
-        # Theta._finish_deferred_init()
-
-        outputs = []
-        for time_step in range(num_of_timesteps):
-            # shape is (batch_size, V, F)
-            graph_signal = x[:, :, :, time_step]
-            output = torch.zeros(batch_size, num_of_vertices, 64,
-                                 device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))
-            for k in range(self.K):
-                # shape of T_k is (V, V)
-                T_k = self.cheb_polynomials[k]
-
-                # shape of T_k_with_at is (batch_size, V, V)
-                T_k_with_at = T_k * spatial_attention[:, time_step, :, :]
-
-                # shape of theta_k is (F, num_of_filters)
-                theta_k = Theta[k]
-
-                # shape is (batch_size, V, F)
-                rhs = torch.bmm(T_k_with_at.float(), graph_signal)
-                # rhs = rhs.to(torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-                theta_k = theta_k.to(torch.device('cuda:0' if torch.cuda.is_available() else 'cpu'))
-
-                output = output + torch.matmul(rhs, theta_k)
-            outputs.append(output.unsqueeze(-1))
-        return torch.relu(torch.concat(outputs, dim=-1))
 
 
 class Inception_Temporal_Layer(nn.Module):
@@ -578,6 +505,7 @@ class gatedFusion(nn.Module):
         gate_value = torch.sigmoid(self.gate(concatenated))
         fused_output = gate_value * HT1 + (1 - gate_value) * HT2
         return fused_output
+
 
 class FeedForward(nn.Module):
     def __init__(self, fea, res_ln=False):
