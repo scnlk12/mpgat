@@ -301,7 +301,7 @@ class Inception_Temporal_Layer(nn.Module):
         )
 
         # self.conv1_1 = CausalConv1d(5 * Hid_channels, Out_channels, 1, groups=1)
-        self.projection = nn.Linear(d_model, d_model)
+        self.projection = nn.Linear(Hid_channels, Out_channels)
 
         self.FC_Q = FeedForward([In_channels, In_channels])
         self.FC_K = FeedForward([In_channels, In_channels])
@@ -349,9 +349,10 @@ class Inception_Temporal_Layer(nn.Module):
 
         # ---- reshape back to [B, T, N, C] ----
         merged = merged.transpose(1, 2).reshape(B, T, N, C)
-        outputs = outputs.reshape(B, N, T, -1)
+        outputs = self.projection(merged)
 
-        return outputs + x1
+        # return outputs + x1
+        return outputs
 
 
 class CausalConv1d(nn.Conv1d):
