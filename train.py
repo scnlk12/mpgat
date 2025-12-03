@@ -18,6 +18,8 @@ import os
 # For pems04
 import csv
 
+import random
+
 def train(
     model,
     trainset_loader,
@@ -243,6 +245,14 @@ def test_model(model, testset_loader, log=None):
     print("Inference time: %.2f s" % (end - start))
     utils.log_string(log, "Inference time: " + str(end - start))
 
+def setup_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 if __name__ == "__main__":
 
@@ -291,6 +301,8 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay', default=True)
     parser.add_argument('--lr_decay_rate', default='0.3')
     parser.add_argument('--lr_decay_step', default='5,20,40,70')
+
+    setup_seed(42)
     
     args = parser.parse_args()
 
