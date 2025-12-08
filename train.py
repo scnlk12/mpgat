@@ -20,6 +20,8 @@ import csv
 
 import random
 
+from torch.utils.tensorboard import SummaryWriter
+
 def train(
     model,
     trainset_loader,
@@ -53,6 +55,14 @@ def train(
         val_loss = eval_model(model, valset_loader, criterion)
         val_loss_list.append(val_loss)
 
+        # ---------------------------
+        # 📌✨ 在这里加入 TensorBoard
+        # ---------------------------
+        writer.add_scalar("Loss/train", train_loss, global_step)
+        writer.add_scalar("Loss/val", val_loss, global_step)
+        global_step += 1
+        # ---------------------------
+
         if (epoch + 1) % verbose == 0:
             print(datetime.datetime.now(), "Epoch", epoch + 1," \tTrain Loss = %.5f" % train_loss,
                 "Val Loss = %.5f" % val_loss)
@@ -60,11 +70,11 @@ def train(
             str_out = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + "\tEpoch" + str(epoch + 1) + " \tTrain Loss = " + str(train_loss) + ", Val Loss = " + str(val_loss)
             
             utils.log_string(log, str_out)
-            config = dict()
-            config['model_state_dict'] = model.state_dict()
-            config['optimizer_state_dict'] = optimizer.state_dict()
-            config['epoch'] = epoch
-            save_model_with_epoch(epoch, log, config)
+            # config = dict()
+            # config['model_state_dict'] = model.state_dict()
+            # config['optimizer_state_dict'] = optimizer.state_dict()
+            # config['epoch'] = epoch
+            # save_model_with_epoch(epoch, log, config)
 
         if val_loss < min_val_loss:
             wait = 0
@@ -301,8 +311,11 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay', default=True)
     parser.add_argument('--lr_decay_rate', default='0.3')
     parser.add_argument('--lr_decay_step', default='5,20,40,70')
-
+    # 随机种子 
     setup_seed(42)
+    # tensorboard
+    writer = SummaryWriter(log_dir="./runLog/mpgat") 
+    global_step = 0
     
     args = parser.parse_args()
 
