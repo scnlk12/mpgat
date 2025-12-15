@@ -80,7 +80,7 @@ class GMAN(nn.Module):
 
         # encoder
         for i, att in enumerate(self.ST_Att):
-            x = att(x, STE_P, TE, self.LAP, self.node_embeddings)
+            x = att(x, TE, self.LAP, self.node_embeddings)
             skip += self.skip_convs[i](x.permute(0, 3, 2, 1))
 
         # output
