@@ -537,6 +537,8 @@ def main():
     else:
         # 多GPU训练
         import torch.multiprocessing as mp
+        # 设置启动方法为spawn,兼容screen/tmux等后台运行环境
+        mp.set_start_method('spawn', force=True)
         mp.spawn(main_worker, args=(world_size, config), nprocs=world_size, join=True)
 
 
