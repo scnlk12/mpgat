@@ -46,7 +46,8 @@ class GMAN(nn.Module):
         )
 
         # 网络结构
-        self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, T)
+        # Use P (history steps) instead of T (total time steps in a day) for adaptive embedding
+        self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, P)
         self.ST_Att = nn.ModuleList(
             [
                 STAttBlock(K, d, LAP, num_node)
