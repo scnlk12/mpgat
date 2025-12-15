@@ -8,8 +8,9 @@ import scipy.sparse as sp
 
 # log string
 def log_string(log, string):
-    log.write(string + '\n')
-    log.flush()
+    if log is not None:
+        log.write(string + '\n')
+        log.flush()
     print(string)
 
 def print_model_parameters(model, only_num = True):
