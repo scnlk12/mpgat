@@ -100,7 +100,7 @@ def MAE(y_true, y_pred, null_val=0):
         return mae
 
 
-def MAPE(y_true, y_pred, null_val=0, epsilon=0.1):
+def MAPE(y_true, y_pred, null_val=0, epsilon=5.0):
     """
     计算平均绝对百分比误差(Mean Absolute Percentage Error)
 
@@ -109,7 +109,7 @@ def MAPE(y_true, y_pred, null_val=0, epsilon=0.1):
         y_pred: 预测值
         null_val: 需要mask的值
         epsilon: 最小阈值,过滤小于此值的真实值以避免除零错误
-                (对于交通流量数据,建议设置为0.1以过滤几乎为0的流量值)
+                (对于交通流量数据,设置为5.0以过滤小流量值,关注主要流量时段)
 
     Returns:
         MAPE值(百分比,已乘以100)
