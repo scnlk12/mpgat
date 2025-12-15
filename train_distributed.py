@@ -407,6 +407,8 @@ def main_worker(rank, world_size, config):
     # 计算拉普拉斯矩阵
     lap_mx, LAP = cal_lape(adj_mx)
     lap_mx = lap_mx.to(device)
+    # Convert sparse matrix to dense tensor
+    LAP = torch.from_numpy(LAP.toarray()).float().to(device)
 
     # 创建模型
     gman_model = GMAN(
