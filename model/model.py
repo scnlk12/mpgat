@@ -344,8 +344,8 @@ class Inception_Temporal_Layer(nn.Module):
         # ---- merge branches using Conv2d ----
         merged = self.merge(outputs).squeeze(1)  # [B*N, C, T]
 
-        # ---- reshape back to [B, T, N, C] ----
-        merged = merged.transpose(1, 2).reshape(B, T, N, C)
+        # ---- reshape back to [B, N, T, C] ----
+        merged = merged.transpose(1, 2).reshape(B, N, T, C)
         outputs = self.projection(merged)
 
         # return outputs + x1
