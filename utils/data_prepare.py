@@ -15,6 +15,16 @@ from .utils import StandardScaler, log_string
 
 # ! X shape: (B, T, N, C)
 
+def collator(indices):
+    """Collate function for batching data"""
+    feature_name = {'x': 'float', 'y': 'float'}
+    batch = Batch(feature_name, pad_item=None, pad_max_len=None)
+    for item in indices:
+        batch.append(copy.deepcopy(item))
+    batch.padding()
+    return batch
+
+
 def seq2instance(data, P, Q):
     num_step, num_nodes, dims = data.shape
     num_sample = num_step - P - Q + 1
@@ -124,15 +134,6 @@ def get_dataloaders(args, log, world_size=1, rank=0):
     #     torch.FloatTensor(testX), torch.FloatTensor(testY)
     # )
 
-    feature_name = {'x': 'float', 'y': 'float'}
-
-    def collator(indices):
-        batch = Batch(feature_name, pad_item=None, pad_max_len=None)
-        for item in indices:
-            batch.append(copy.deepcopy(item))
-        batch.padding()
-        return batch
-
     # Create distributed samplers for multi-GPU training
     if world_size > 1:
         train_sampler = DistributedSampler(
@@ -160,16 +161,15 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         test_sampler = None
 
     # Create DataLoaders with optimized settings
+    # Note: num_workers=0 to avoid multiprocessing issues with custom collate_fn
     trainset_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         sampler=train_sampler,
         shuffle=(train_sampler is None),  # Only shuffle if not using sampler
         collate_fn=collator,
-        num_workers=4,
+        num_workers=0,
         pin_memory=True,
-        prefetch_factor=2 if train_sampler is not None else None,
-        persistent_workers=True if train_sampler is not None else False,
     )
     valset_loader = torch.utils.data.DataLoader(
         eval_dataset,
@@ -177,7 +177,7 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         sampler=val_sampler,
         shuffle=False,
         collate_fn=collator,
-        num_workers=4,
+        num_workers=0,
         pin_memory=True,
     )
     testset_loader = torch.utils.data.DataLoader(
@@ -186,7 +186,7 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         sampler=test_sampler,
         shuffle=False,
         collate_fn=collator,
-        num_workers=4,
+        num_workers=0,
         pin_memory=True,
     )
 
