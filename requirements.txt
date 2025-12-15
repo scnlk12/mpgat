@@ -1,0 +1,29 @@
+# MP-STGAT 项目依赖
+
+# PyTorch (请根据你的CUDA版本选择合适的版本)
+# 访问 https://pytorch.org 获取安装命令
+torch>=1.12.0
+torchvision>=0.13.0
+
+# 科学计算
+numpy>=1.21.0
+scipy>=1.7.0
+
+# 配置管理
+pyyaml>=6.0
+
+# 可视化
+tensorboard>=2.9.0
+matplotlib>=3.5.0
+
+# 其他工具
+tqdm>=4.64.0
+
+# 可选：Jupyter支持
+# jupyter>=1.0.0
+# ipython>=8.0.0
+
+# 注意：
+# 1. PyTorch版本需要与CUDA版本匹配
+# 2. 建议使用conda环境管理
+# 3. 安装命令：pip install -r requirements.txt

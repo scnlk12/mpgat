@@ -1,0 +1,87 @@
+# MP-STGAT 训练配置文件
+
+# ==================== GPU配置 ====================
+gpu:
+  # 使用的GPU编号列表，如 [0, 1, 2] 表示使用前3张GPU
+  device_ids: [0]
+  # 是否启用分布式训练（多GPU并发）
+  distributed: false
+  # 主GPU设备ID
+  main_device: 0
+
+# ==================== 数据集配置 ====================
+data:
+  # 数据集路径 (可选: PEMS03, PEMS04, PEMS07, PEMS08)
+  traffic_file: 'data/PEMS03/PEMS03.npz'
+  # 训练/验证/测试集划分比例
+  train_ratio: 0.6
+  val_ratio: 0.2
+  test_ratio: 0.2
+  # 批次大小（多GPU时会自动分配）
+  batch_size: 16
+
+# ==================== 模型配置 ====================
+model:
+  # 输入特征维度 [flow, time_of_day, day_of_week]
+  input_dim: 3
+  # 历史时间步数 (P * 5分钟)
+  P: 12
+  # 预测时间步数 (Q * 5分钟)
+  Q: 12
+  # 一天的时间步数 (288 = 24小时 * 12个5分钟)
+  T: 288
+  # STAttBlock层数
+  L: 2
+  # 注意力头数
+  K: 8
+  # 每个注意力头的维度
+  d: 8
+  # 节点嵌入维度
+  embed_dim: 1
+  # 跳跃连接维度
+  skip_dim: 256
+
+# ==================== 训练配置 ====================
+training:
+  # 最大训练轮数
+  max_epoch: 400
+  # 早停耐心值
+  patience: 50
+  # 初始学习率
+  learning_rate: 0.001
+  # 梯度裁剪阈值
+  clip_grad: 5
+  # 损失函数 (mae, mse, masked_mae)
+  loss_func: 'masked_mae'
+
+  # 学习率衰减配置
+  lr_decay: true
+  lr_decay_rate: 0.3
+  lr_decay_step: '5,20,40,70'
+  # StepLR参数
+  step_size: 100
+  gamma: 0.9
+
+# ==================== 日志与保存 ====================
+logging:
+  # 日志文件保存目录
+  log_dir: './logs'
+  # TensorBoard日志目录
+  tensorboard_dir: './runLog/mpgat'
+  # 每隔多少个epoch打印一次
+  verbose: 1
+
+saving:
+  # 模型保存目录
+  model_dir: './saved_models'
+  # 是否保存最佳模型
+  save_best: true
+
+# ==================== 其他配置 ====================
+misc:
+  # 随机种子
+  seed: 42
+  # 时间片长度（分钟）
+  time_slot: 5
+  # 是否使用混合精度训练（节省显存）
+  use_amp: false

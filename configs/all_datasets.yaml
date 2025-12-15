@@ -1,0 +1,50 @@
+# 适用于所有PEMS数据集的通用配置
+
+gpu:
+  device_ids: [0, 1]  # 使用2张GPU
+  distributed: true
+  main_device: 0
+
+data:
+  traffic_file: 'data/PEMS03/PEMS03.npz'  # 通过命令行参数覆盖
+  train_ratio: 0.6
+  val_ratio: 0.2
+  test_ratio: 0.2
+  batch_size: 24
+
+model:
+  input_dim: 3
+  P: 12
+  Q: 12
+  T: 288
+  L: 2
+  K: 8
+  d: 8
+  embed_dim: 1
+  skip_dim: 256
+
+training:
+  max_epoch: 400
+  patience: 50
+  learning_rate: 0.002  # 2 GPU: 2×基础lr
+  clip_grad: 5
+  loss_func: 'masked_mae'
+  lr_decay: true
+  lr_decay_rate: 0.3
+  lr_decay_step: '5,20,40,70'
+  step_size: 100
+  gamma: 0.9
+
+logging:
+  log_dir: './logs'
+  tensorboard_dir: './runLog/mpgat'
+  verbose: 1
+
+saving:
+  model_dir: './saved_models'
+  save_best: true
+
+misc:
+  seed: 42
+  time_slot: 5
+  use_amp: true
