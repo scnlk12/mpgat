@@ -8,10 +8,10 @@ echo "=========================================="
 
 # 配置
 CONFIG="configs/all_datasets.yaml"
-GPU_IDS="0,1,2,3"  # 修改为你的GPU配置
+GPU_IDS="0,1,2"  # 修改为你的GPU配置
 
 # 数据集列表
-DATASETS=("PEMS03" "PEMS04" "PEMS07" "PEMS08")
+DATASETS=("PEMS08" "PEMS03" "PEMS04" "PEMS07")
 
 # 循环训练
 for dataset in "${DATASETS[@]}"; do
