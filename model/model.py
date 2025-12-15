@@ -91,7 +91,7 @@ class GMAN(nn.Module):
 
 
 class STEmbedding(nn.Module):
-    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.2):
+    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.1):
         super().__init__()
         self.K = K
         self.d = d

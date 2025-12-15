@@ -45,24 +45,24 @@ model:
 training:
   # 最大训练轮数
   max_epoch: 400
-  # 早停耐心值 - 减小以防止过拟合
-  patience: 30
-  # 初始学习率 - 降低以提高稳定性
-  learning_rate: 0.0003
-  # 梯度裁剪阈值 - 降低以防止梯度爆炸
-  clip_grad: 3
+  # 早停耐心值 - 给更多时间探索
+  patience: 40
+  # 初始学习率 - 激进提高,加快收敛
+  learning_rate: 0.001
+  # 梯度裁剪阈值 - 放宽一点
+  clip_grad: 5
   # 损失函数 (mae, mse, masked_mae)
   loss_func: 'masked_mae'
-  # 权重衰减(L2正则化) - 增大以防止过拟合
-  weight_decay: 0.0005
+  # 权重衰减(L2正则化) - 大幅降低,优先让模型学习
+  weight_decay: 0.0001
 
   # 学习率衰减配置
   lr_decay: true
   lr_decay_rate: 0.3
   lr_decay_step: '5,20,40,70'
-  # StepLR参数 - 更频繁地衰减
-  step_size: 50
-  gamma: 0.95
+  # StepLR参数 - 大幅延后,优先收敛
+  step_size: 100
+  gamma: 0.9
 
 # ==================== 日志与保存 ====================
 logging:
