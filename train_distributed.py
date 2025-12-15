@@ -174,6 +174,11 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
     model.train()
     batch_loss_list = []
 
+    # 添加进度条 (仅主进程)
+    if rank == 0:
+        from tqdm import tqdm
+        trainset_loader = tqdm(trainset_loader, desc="Training", leave=False)
+
     for batch in trainset_loader:
         batch.to_tensor(f'cuda:{rank}')
 

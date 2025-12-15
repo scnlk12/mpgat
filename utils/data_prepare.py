@@ -161,15 +161,18 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         test_sampler = None
 
     # Create DataLoaders with optimized settings
-    # Note: num_workers=0 to avoid multiprocessing issues with custom collate_fn
+    # Use 2 workers per dataloader for async data loading
+    num_workers = 2
     trainset_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
         sampler=train_sampler,
         shuffle=(train_sampler is None),  # Only shuffle if not using sampler
         collate_fn=collator,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     valset_loader = torch.utils.data.DataLoader(
         eval_dataset,
@@ -177,8 +180,10 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         sampler=val_sampler,
         shuffle=False,
         collate_fn=collator,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     testset_loader = torch.utils.data.DataLoader(
         test_dataset,
@@ -186,8 +191,10 @@ def get_dataloaders(args, log, world_size=1, rank=0):
         sampler=test_sampler,
         shuffle=False,
         collate_fn=collator,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=True if num_workers > 0 else False,
+        prefetch_factor=2 if num_workers > 0 else None,
     )
 
     return trainset_loader, valset_loader, testset_loader, scaler
