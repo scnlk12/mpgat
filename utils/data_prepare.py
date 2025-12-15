@@ -8,9 +8,9 @@ import torch
 from torch.utils.data.distributed import DistributedSampler
 
 # 本地模块
-from batch import Batch
-from list_data import ListDataset
-from utils import StandardScaler, log_string
+from .batch import Batch
+from .list_data import ListDataset
+from .utils import StandardScaler, log_string
 
 
 # ! X shape: (B, T, N, C)
