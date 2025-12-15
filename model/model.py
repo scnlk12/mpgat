@@ -279,7 +279,7 @@ class Inception_Temporal_Layer(nn.Module):
 
         # Multi-scale branches
         self.branches = nn.ModuleList([
-            nn.Sequential(-+
+            nn.Sequential(
                 CausalConv1d(Hid_channels, Hid_channels, k),
                 nn.LeakyReLU()
             )
