@@ -20,18 +20,13 @@ def MSE(y_true, y_pred, null_val=0):
         else:
             mask = np.not_equal(y_true, null_val)
         mask = mask.astype(np.float32)
+        mask /= np.mean(mask)  # mask归一化,与masked_mae_torch一致
 
         # 计算平方误差
         mse = np.square(y_pred - y_true)
-        mse = mse * mask
-        mse = np.nan_to_num(mse)
-
-        # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sum(mse) / valid_count
-        else:
-            return 0.0
+        mse = np.nan_to_num(mse * mask)
+        mse = np.mean(mse)
+        return mse
 
 
 def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
@@ -69,18 +64,13 @@ def RMSE(y_true, y_pred, null_val=0):
         else:
             mask = np.not_equal(y_true, null_val)
         mask = mask.astype(np.float32)
+        mask /= np.mean(mask)  # mask归一化,与masked_mae_torch一致
 
         # 计算平方误差
-        rmse = np.square(y_pred - y_true)
-        rmse = rmse * mask
-        rmse = np.nan_to_num(rmse)
-
-        # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sqrt(np.sum(rmse) / valid_count)
-        else:
-            return 0.0
+        rmse = np.square(np.abs(y_pred - y_true))
+        rmse = np.nan_to_num(rmse * mask)
+        rmse = np.sqrt(np.mean(rmse))
+        return rmse
 
 
 def MAE(y_true, y_pred, null_val=0):
@@ -101,21 +91,16 @@ def MAE(y_true, y_pred, null_val=0):
         else:
             mask = np.not_equal(y_true, null_val)
         mask = mask.astype(np.float32)
+        mask /= np.mean(mask)  # mask归一化,与masked_mae_torch一致
 
         # 计算绝对误差
         mae = np.abs(y_pred - y_true)
-        mae = mae * mask
-        mae = np.nan_to_num(mae)
-
-        # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sum(mae) / valid_count
-        else:
-            return 0.0
+        mae = np.nan_to_num(mae * mask)
+        mae = np.mean(mae)
+        return mae
 
 
-def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
+def MAPE(y_true, y_pred, null_val=0, epsilon=0.1):
     """
     计算平均绝对百分比误差(Mean Absolute Percentage Error)
 
@@ -124,6 +109,7 @@ def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
         y_pred: 预测值
         null_val: 需要mask的值
         epsilon: 最小阈值,过滤小于此值的真实值以避免除零错误
+                (对于交通流量数据,建议设置为0.1以过滤几乎为0的流量值)
 
     Returns:
         MAPE值(百分比,已乘以100)
@@ -136,6 +122,7 @@ def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
             mask = np.not_equal(y_true, null_val)
 
         # 过滤绝对值小于epsilon的值以避免除零和数值不稳定
+        # 对于交通流量预测,过滤掉流量<0.1的样本是合理的
         mask = mask & (np.abs(y_true) >= epsilon)
         mask = mask.astype("float32")
 

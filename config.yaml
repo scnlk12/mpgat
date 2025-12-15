@@ -45,14 +45,16 @@ model:
 training:
   # 最大训练轮数
   max_epoch: 400
-  # 早停耐心值
-  patience: 50
+  # 早停耐心值 - 减小以防止过拟合
+  patience: 20
   # 初始学习率
   learning_rate: 0.001
   # 梯度裁剪阈值
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae)
   loss_func: 'masked_mae'
+  # 权重衰减(L2正则化) - 防止过拟合
+  weight_decay: 0.0001
 
   # 学习率衰减配置
   lr_decay: true
