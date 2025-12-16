@@ -35,7 +35,8 @@ def MSE(y_true, y_pred, null_val=0):
 
 
 def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
-    labels[torch.abs(labels) < 1e-4] = 0
+    # 删除了 labels[torch.abs(labels) < 1e-4] = 0 这行代码
+    # 原因: 1e-4阈值在原始数据上没有意义,且可能误处理小值
     if np.isnan(null_val):
         mask = ~torch.isnan(labels)
     else:
@@ -65,16 +66,16 @@ def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0
     Returns:
         Huber损失值
     """
-    labels_copy = labels.clone()
-    labels_copy[torch.abs(labels_copy) < 1e-4] = 0
+    # 删除了 labels_copy[torch.abs(labels_copy) < 1e-4] = 0 这行代码
+    # 原因: 1e-4阈值在原始数据上没有意义,且可能误处理小值
 
     # 创建mask
     if np.isnan(null_val):
-        mask = ~torch.isnan(labels_copy)
+        mask = ~torch.isnan(labels)
     else:
-        mask = labels_copy.ne(null_val)
+        mask = labels.ne(null_val)
     if not np.isnan(mask_val):
-        mask &= labels_copy.ge(mask_val)
+        mask &= labels.ge(mask_val)
 
     mask = mask.float()
     mask_sum = torch.sum(mask)
@@ -85,7 +86,7 @@ def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0
 
     # 使用PyTorch内置实现(更稳定,支持FP16)
     loss = torch.nn.functional.smooth_l1_loss(
-        preds, labels_copy,
+        preds, labels,
         reduction='none',
         beta=delta  # delta=1.0更适合归一化数据
     )
@@ -163,6 +164,64 @@ def RMSE_MAE_MAPE(y_true, y_pred):
         MAE(y_true, y_pred),
         MAPE(y_true, y_pred),
     )
+
+
+def RMSE_MAE_MAPE_with_zero_stats(y_true, y_pred, epsilon=1e-3):
+    """
+    计算RMSE, MAE, MAPE，并额外统计零值的预测情况
+
+    Args:
+        y_true: 真实值
+        y_pred: 预测值
+        epsilon: 判定为零的阈值
+
+    Returns:
+        dict: 包含整体指标和零值/非零值分离统计
+    """
+    # 整体指标
+    overall_rmse, overall_mae, overall_mape = RMSE_MAE_MAPE(y_true, y_pred)
+
+    # 零值mask
+    zero_mask = np.abs(y_true) < epsilon
+    non_zero_mask = ~zero_mask
+
+    # 零值位置的统计
+    zero_count = zero_mask.sum()
+    if zero_count > 0:
+        zero_mae = np.abs(y_pred[zero_mask] - y_true[zero_mask]).mean()
+        zero_rmse = np.sqrt(np.square(y_pred[zero_mask] - y_true[zero_mask]).mean())
+    else:
+        zero_mae = 0.0
+        zero_rmse = 0.0
+
+    # 非零值位置的统计
+    non_zero_count = non_zero_mask.sum()
+    if non_zero_count > 0:
+        non_zero_mae = np.abs(y_pred[non_zero_mask] - y_true[non_zero_mask]).mean()
+        non_zero_rmse = np.sqrt(np.square(y_pred[non_zero_mask] - y_true[non_zero_mask]).mean())
+    else:
+        non_zero_mae = 0.0
+        non_zero_rmse = 0.0
+
+    return {
+        'overall': {
+            'RMSE': overall_rmse,
+            'MAE': overall_mae,
+            'MAPE': overall_mape
+        },
+        'zero_flow': {
+            'MAE': zero_mae,
+            'RMSE': zero_rmse,
+            'count': int(zero_count),
+            'ratio': float(zero_count / y_true.size)
+        },
+        'non_zero': {
+            'MAE': non_zero_mae,
+            'RMSE': non_zero_rmse,
+            'count': int(non_zero_count),
+            'ratio': float(non_zero_count / y_true.size)
+        }
+    }
 
 
 def MSE_RMSE_MAE_MAPE(y_true, y_pred):

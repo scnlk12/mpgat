@@ -1,5 +1,5 @@
 from .utils import log_string, print_model_parameters, cal_lape, StandardScaler
-from .metrics import RMSE_MAE_MAPE, masked_mae_torch
+from .metrics import RMSE_MAE_MAPE, RMSE_MAE_MAPE_with_zero_stats, masked_mae_torch
 from .config_loader import load_config, save_config, validate_config
 
 # 子模块
@@ -12,6 +12,7 @@ __all__ = [
     'cal_lape',
     'StandardScaler',
     'RMSE_MAE_MAPE',
+    'RMSE_MAE_MAPE_with_zero_stats',
     'masked_mae_torch',
     'load_config',
     'save_config',

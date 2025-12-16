@@ -487,11 +487,14 @@ def main_worker(rank, world_size, config):
     elif config.training.loss_func == 'mse':
         criterion = torch.nn.MSELoss()
     elif config.training.loss_func == 'masked_mae':
-        criterion = partial(masked_mae_torch, null_val=0)
+        # 修复: 使用-1作为null_val而非0，因为0是真实的零流量而非缺失值
+        # 交通数据中0表示凌晨无车通过，应该参与训练
+        criterion = partial(masked_mae_torch, null_val=-1)
     elif config.training.loss_func == 'huber':
         # Huber Loss: 对离群点更鲁棒,有助于降低RMSE
         # delta设置为数据的合理阈值(对于交通流量,5.0是合理的分界点)
-        criterion = partial(masked_huber_loss, null_val=0, delta=5.0)
+        # 修复: 使用-1作为null_val而非0，因为0是真实的零流量而非缺失值
+        criterion = partial(masked_huber_loss, null_val=-1, delta=5.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 
