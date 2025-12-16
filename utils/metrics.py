@@ -46,6 +46,40 @@ def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
     return torch.mean(loss)
 
 
+def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0):
+    """
+    Huber Loss: 对小误差使用MSE,对大误差使用MAE
+    优点: 对离群点更鲁棒,同时保持对小误差的敏感性
+
+    Args:
+        preds: 预测值
+        labels: 真实值
+        null_val: mask掉的空值
+        mask_val: mask掉的最小值
+        delta: Huber损失的阈值,误差小于delta用MSE,大于delta用MAE
+    """
+    labels[torch.abs(labels) < 1e-4] = 0
+    if np.isnan(null_val):
+        mask = ~torch.isnan(labels)
+    else:
+        mask = labels.ne(null_val)
+    if not np.isnan(mask_val):
+        mask &= labels.ge(mask_val)
+    mask = mask.float()
+    mask /= torch.mean(mask)
+    mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
+
+    # Huber Loss计算
+    error = torch.abs(preds - labels)
+    quadratic = torch.clamp(error, max=delta)
+    linear = error - quadratic
+    loss = 0.5 * quadratic ** 2 + delta * linear
+
+    loss = loss * mask
+    loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
+    return torch.mean(loss)
+
+
 def RMSE(y_true, y_pred, null_val=0):
     """
     计算均方根误差(Root Mean Square Error)

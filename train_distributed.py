@@ -26,7 +26,7 @@ import yaml
 from utils import data_prepare
 import model
 import utils
-from utils.metrics import RMSE_MAE_MAPE, masked_mae_torch
+from utils.metrics import RMSE_MAE_MAPE, masked_mae_torch, masked_huber_loss
 from model import GMAN
 from utils import cal_lape, print_model_parameters
 from utils.config_loader import load_config, save_config, validate_config
@@ -475,9 +475,16 @@ def main_worker(rank, world_size, config):
         weight_decay=config.training.get('weight_decay', 1e-4)  # L2正则化
     )
 
-    # 学习率调度
+    # 学习率调度 - 使用CosineAnnealing实现平滑衰减
     lr_scheduler = None
-    if config.training.lr_decay:
+    if config.training.get('use_cosine_annealing', True):
+        # Cosine Annealing: 学习率从初始值平滑降到最小值
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer=optimizer,
+            T_max=config.training.max_epoch,  # 周期长度
+            eta_min=1e-6  # 最小学习率
+        )
+    elif config.training.lr_decay:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optimizer,
             step_size=config.training.step_size,
@@ -491,6 +498,9 @@ def main_worker(rank, world_size, config):
         criterion = torch.nn.MSELoss()
     elif config.training.loss_func == 'masked_mae':
         criterion = partial(masked_mae_torch, null_val=0)
+    elif config.training.loss_func == 'huber':
+        # Huber Loss: 对离群点更鲁棒,有助于降低RMSE
+        criterion = partial(masked_huber_loss, null_val=0, delta=10.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 

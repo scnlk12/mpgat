@@ -30,10 +30,10 @@ model:
   Q: 12
   # 一天的时间步数 (288 = 24小时 * 12个5分钟)
   T: 288
-  # STAttBlock层数
-  L: 2
-  # 注意力头数
-  K: 8
+  # STAttBlock层数 - 增加到3层提升表达能力
+  L: 3
+  # 注意力头数 - 增加到10提升多尺度建模能力
+  K: 10
   # 每个注意力头的维度
   d: 8
   # 节点嵌入维度
@@ -51,12 +51,14 @@ training:
   learning_rate: 0.001
   # 梯度裁剪阈值 - 放宽一点
   clip_grad: 5
-  # 损失函数 (mae, mse, masked_mae)
-  loss_func: 'masked_mae'
-  # 权重衰减(L2正则化) - 大幅降低,优先让模型学习
-  weight_decay: 0.0001
+  # 损失函数 (mae, mse, masked_mae, huber)
+  loss_func: 'huber'
+  # 权重衰减(L2正则化) - 增加到0.0002
+  weight_decay: 0.0002
+  # 使用Cosine Annealing学习率调度
+  use_cosine_annealing: true
 
-  # 学习率衰减配置
+  # 学习率衰减配置 (当use_cosine_annealing=false时生效)
   lr_decay: true
   lr_decay_rate: 0.3
   lr_decay_step: '5,20,40,70'
