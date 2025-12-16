@@ -51,6 +51,51 @@ def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
     return torch.mean(loss)
 
 
+def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0):
+    """
+    使用PyTorch内置的smooth_l1_loss计算Huber损失
+
+    Args:
+        preds: 预测值
+        labels: 真实值
+        null_val: 需要mask的值
+        mask_val: 最小阈值mask
+        delta: Huber损失的delta参数(beta),控制二次损失和线性损失的转换点
+
+    Returns:
+        Huber损失值
+    """
+    labels_copy = labels.clone()
+    labels_copy[torch.abs(labels_copy) < 1e-4] = 0
+
+    # 创建mask
+    if np.isnan(null_val):
+        mask = ~torch.isnan(labels_copy)
+    else:
+        mask = labels_copy.ne(null_val)
+    if not np.isnan(mask_val):
+        mask &= labels_copy.ge(mask_val)
+
+    mask = mask.float()
+    mask_sum = torch.sum(mask)
+
+    # 避免除零
+    if mask_sum == 0:
+        return torch.tensor(0.0, device=preds.device)
+
+    # 使用PyTorch内置实现(更稳定,支持FP16)
+    loss = torch.nn.functional.smooth_l1_loss(
+        preds, labels_copy,
+        reduction='none',
+        beta=delta  # delta=1.0更适合归一化数据
+    )
+
+    # 应用mask并求平均
+    loss = loss * mask
+    loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
+    return torch.sum(loss) / mask_sum
+
+
 def RMSE(y_true, y_pred):
     with np.errstate(divide="ignore", invalid="ignore"):
         mask = np.not_equal(y_true, 0)
