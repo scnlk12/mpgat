@@ -12,11 +12,12 @@ gpu:
 # ==================== 数据集配置 ====================
 data:
   # 数据集路径 (可选: PEMS03, PEMS04, PEMS07, PEMS08)
-  traffic_file: 'data/PEMS03/PEMS03.npz'
+  traffic_file: 'data/PEMS08/PEMS08.npz'
   # 训练/验证/测试集划分比例
-  train_ratio: 0.6
-  val_ratio: 0.2
-  test_ratio: 0.2
+  # 优化: PEMS08数据量大(62天),增加训练集比例以学习更多模式
+  train_ratio: 0.7    # 原0.6 → 0.7
+  val_ratio: 0.15     # 原0.2 → 0.15
+  test_ratio: 0.15    # 原0.2 → 0.15
   # 批次大小（减小batch_size提高更新频率，增强稳定性）
   batch_size: 64
 
@@ -25,19 +26,23 @@ model:
   # 输入特征维度 [flow, time_of_day, day_of_week]
   input_dim: 3
   # 历史时间步数 (P * 5分钟)
-  P: 12
+  # 优化: 60分钟→90分钟,捕捉更长的交通周期模式
+  P: 18               # 原12 → 18 (90分钟历史)
   # 预测时间步数 (Q * 5分钟)
   Q: 12
   # 一天的时间步数 (288 = 24小时 * 12个5分钟)
   T: 288
   # STAttBlock层数
-  L: 2
+  # 优化: 增加网络深度以建模更复杂的时空依赖关系
+  L: 3                # 原2 → 3层
   # 注意力头数
   K: 8
   # 每个注意力头的维度
-  d: 8
+  # 优化: 增大注意力容量 (总容量=K×d=8×16=128)
+  d: 16               # 原8 → 16
   # 节点嵌入维度
-  embed_dim: 1
+  # 优化: PEMS08有170个节点,embed_dim=32足够表达节点特征(sqrt(170)≈13)
+  embed_dim: 32       # 原1 → 32 ⭐关键优化⭐
   # 跳跃连接维度
   skip_dim: 256
 
@@ -46,13 +51,16 @@ training:
   # 最大训练轮数
   max_epoch: 1000
   # 早停耐心值
-  patience: 50
+  # 优化: 模型更复杂,需要更多epoch才能收敛
+  patience: 80          # 原50 → 80
   # 初始学习率
-  learning_rate: 0.001
+  # 优化: 降低学习率以获得更稳定的训练
+  learning_rate: 0.0005 # 原0.001 → 0.0005
   # 梯度裁剪阈值
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
-  loss_func: 'masked_mae'
+  # 优化: Huber损失对离群点更鲁棒,适合交通数据中的异常值
+  loss_func: 'huber'    # 原'masked_mae' → 'huber'
 
   # 学习率衰减配置 (使用CosineAnnealing提供平滑衰减)
   use_cosine_annealing: true
@@ -64,11 +72,13 @@ training:
   gamma: 0.9
 
   # 正则化配置 (增强泛化能力，减少过拟合)
-  weight_decay: 0.0002  # L2正则化
-  dropout: 0.1          # Dropout概率
+  # 优化: 降低weight_decay避免欠拟合,增加dropout防止过拟合
+  weight_decay: 0.0001  # 原0.0002 → 0.0001
+  dropout: 0.15         # 原0.1 → 0.15
 
   # 学习率预热 (前N个epoch逐步提升学习率)
-  warmup_epochs: 10
+  # 优化: 模型更复杂,延长warmup期
+  warmup_epochs: 15     # 原10 → 15
 
 # ==================== 日志与保存 ====================
 logging:
