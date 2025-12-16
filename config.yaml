@@ -3,9 +3,9 @@
 # ==================== GPU配置 ====================
 gpu:
   # 使用的GPU编号列表，如 [0, 1, 2] 表示使用前3张GPU
-  device_ids: [0]
+  device_ids: [0, 1, 2]
   # 是否启用分布式训练（多GPU并发）
-  distributed: false
+  distributed: true
   # 主GPU设备ID
   main_device: 0
 
