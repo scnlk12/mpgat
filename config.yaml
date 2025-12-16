@@ -17,7 +17,7 @@ data:
   train_ratio: 0.6
   val_ratio: 0.2
   test_ratio: 0.2
-  # 批次大小（多GPU时会自动分配）
+  # 批次大小（减小batch_size提高更新频率，增强稳定性）
   batch_size: 64
 
 # ==================== 模型配置 ====================
@@ -35,7 +35,7 @@ model:
   # 注意力头数
   K: 8
   # 每个注意力头的维度
-  d: 8
+  d: 16
   # 节点嵌入维度
   embed_dim: 1
   # 跳跃连接维度
@@ -47,20 +47,28 @@ training:
   max_epoch: 400
   # 早停耐心值
   patience: 50
-  # 初始学习率
-  learning_rate: 0.001
+  # 初始学习率 (降低学习率以适应d=16的大模型)
+  learning_rate: 0.0003
   # 梯度裁剪阈值
   clip_grad: 5
-  # 损失函数 (mae, mse, masked_mae)
+  # 损失函数 (mae, mse, masked_mae, huber)
   loss_func: 'masked_mae'
 
-  # 学习率衰减配置
-  lr_decay: true
+  # 学习率衰减配置 (使用CosineAnnealing提供平滑衰减)
+  use_cosine_annealing: true
+  lr_decay: false
   lr_decay_rate: 0.3
   lr_decay_step: '5,20,40,70'
-  # StepLR参数
+  # StepLR参数 (当use_cosine_annealing=false时使用)
   step_size: 100
   gamma: 0.9
+
+  # 正则化配置 (增强泛化能力，减少过拟合)
+  weight_decay: 0.0001  # L2正则化
+  dropout: 0.1          # Dropout概率
+
+  # 学习率预热 (前N个epoch逐步提升学习率)
+  warmup_epochs: 10
 
 # ==================== 日志与保存 ====================
 logging:
