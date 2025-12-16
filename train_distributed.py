@@ -437,18 +437,43 @@ def main_worker(rank, world_size, config):
     if world_size > 1:
         gman_model = DDP(gman_model, device_ids=[rank], find_unused_parameters=True)
 
-    # 优化器
-    optimizer = torch.optim.Adam(params=gman_model.parameters(), lr=config.training.learning_rate)
+    # 优化器 (添加weight_decay支持L2正则化)
+    weight_decay = config.training.get('weight_decay', 0.0)
+    optimizer = torch.optim.Adam(
+        params=gman_model.parameters(),
+        lr=config.training.learning_rate,
+        weight_decay=weight_decay
+    )
 
     # 学习率调度 - 使用CosineAnnealing实现平滑衰减
     lr_scheduler = None
+    warmup_epochs = config.training.get('warmup_epochs', 0)
+
     if config.training.get('use_cosine_annealing', True):
         # Cosine Annealing: 学习率从初始值平滑降到最小值
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        base_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer=optimizer,
             T_max=config.training.max_epoch,  # 周期长度
             eta_min=1e-6  # 最小学习率
         )
+
+        # 添加Warmup
+        if warmup_epochs > 0:
+            from torch.optim.lr_scheduler import LinearLR, SequentialLR
+            warmup_scheduler = LinearLR(
+                optimizer=optimizer,
+                start_factor=0.1,  # 从10%学习率开始
+                end_factor=1.0,    # 逐步增加到100%
+                total_iters=warmup_epochs
+            )
+            lr_scheduler = SequentialLR(
+                optimizer=optimizer,
+                schedulers=[warmup_scheduler, base_scheduler],
+                milestones=[warmup_epochs]
+            )
+        else:
+            lr_scheduler = base_scheduler
+
     elif config.training.lr_decay:
         lr_scheduler = torch.optim.lr_scheduler.StepLR(
             optimizer=optimizer,
