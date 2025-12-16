@@ -52,7 +52,7 @@ training:
   # 梯度裁剪阈值 - 放宽一点
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
-  loss_func: 'huber'  # 使用Huber Loss,对离群点更鲁棒
+  loss_func: 'masked_mae'  # MAE最稳定,适合交通流量预测
   # 权重衰减(L2正则化) - 增加到0.0002
   weight_decay: 0.0002
   # 使用Cosine Annealing学习率调度

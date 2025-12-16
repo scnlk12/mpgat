@@ -500,8 +500,8 @@ def main_worker(rank, world_size, config):
         criterion = partial(masked_mae_torch, null_val=0)
     elif config.training.loss_func == 'huber':
         # Huber Loss: 对离群点更鲁棒,有助于降低RMSE
-        # delta=1.0: 对于归一化后的数据更合适
-        criterion = partial(masked_huber_loss, null_val=0, delta=1.0)
+        # delta设置为数据的合理阈值(对于交通流量,5.0是合理的分界点)
+        criterion = partial(masked_huber_loss, null_val=0, delta=5.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 
