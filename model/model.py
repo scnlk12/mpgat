@@ -91,7 +91,7 @@ class GMAN(nn.Module):
 
 
 class STEmbedding(nn.Module):
-    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.):
+    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.1):
         super().__init__()
         self.K = K
         self.d = d
@@ -101,8 +101,10 @@ class STEmbedding(nn.Module):
             nn.Linear(self.K * self.d, self.K * self.d),
             nn.LayerNorm(self.K * self.d),
             nn.ReLU(inplace=True),
+            nn.Dropout(drop),  # 添加dropout
             nn.Linear(self.K * self.d, self.K * self.d),
             nn.LayerNorm(self.K * self.d),
+            nn.Dropout(drop),  # 添加dropout
         )
 
         # Ea (STAEformer论文) 感觉类似位置编码
