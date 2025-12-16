@@ -30,9 +30,9 @@ model:
   Q: 12
   # 一天的时间步数 (288 = 24小时 * 12个5分钟)
   T: 288
-  # STAttBlock层数 - 增加到3层提升表达能力
+  # STAttBlock层数
   L: 3
-  # 注意力头数 - 增加到10提升多尺度建模能力
+  # 注意力头数
   K: 10
   # 每个注意力头的维度
   d: 8
@@ -52,7 +52,7 @@ training:
   # 梯度裁剪阈值 - 放宽一点
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
-  loss_func: 'masked_mae'  # MAE最稳定,适合交通流量预测
+  loss_func: 'huber'
   # 权重衰减(L2正则化) - 增加到0.0002
   weight_decay: 0.0002
   # 使用Cosine Annealing学习率调度
@@ -88,4 +88,4 @@ misc:
   # 时间片长度（分钟）
   time_slot: 5
   # 是否使用混合精度训练（节省显存）
-  use_amp: true  # 启用FP16混合精度,可节省约50%显存
+  use_amp: false  # 关闭FP16,使用FP32确保数值稳定
