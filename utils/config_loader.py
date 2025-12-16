@@ -182,7 +182,7 @@ def validate_config(config: Config) -> None:
 
         # 验证loss_func
         if hasattr(training_config, 'loss_func'):
-            valid_loss_funcs = ['mae', 'mse', 'masked_mae']
+            valid_loss_funcs = ['mae', 'mse', 'masked_mae', 'huber']
             if training_config.loss_func not in valid_loss_funcs:
                 errors.append(f"loss_func必须是{valid_loss_funcs}之一, 当前值: {training_config.loss_func}")
     else:
