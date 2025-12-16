@@ -287,37 +287,6 @@ def test_model(model, testset_loader, rank, data_scaler, log=None):
     y_true, y_pred = predict(model, testset_loader, rank, data_scaler)
     end = time.time()
 
-    # 调试信息: 打印数据范围
-    print(f"Data Statistics:")
-    print(f"  y_true - min: {y_true.min():.2f}, max: {y_true.max():.2f}, mean: {y_true.mean():.2f}")
-    print(f"  y_pred - min: {y_pred.min():.2f}, max: {y_pred.max():.2f}, mean: {y_pred.mean():.2f}")
-
-    # MAPE异常分析: 检查不同流量区间的误差
-    print(f"\nMAPE Analysis by Flow Range:")
-    print(f"  Samples with y_true < 1.0: {(y_true < 1.0).sum()} ({(y_true < 1.0).mean()*100:.1f}%)")
-    print(f"  Samples with y_true < 5.0: {(y_true < 5.0).sum()} ({(y_true < 5.0).mean()*100:.1f}%)")
-    print(f"  Samples with y_true < 10.0: {(y_true < 10.0).sum()} ({(y_true < 10.0).mean()*100:.1f}%)")
-
-    # 分别计算不同流量区间的MAPE
-    mask_small = (y_true >= 0.1) & (y_true < 5.0)
-    mask_medium = (y_true >= 5.0) & (y_true < 20.0)
-    mask_large = (y_true >= 20.0)
-
-    if mask_small.sum() > 0:
-        mape_small = np.mean(np.abs((y_pred[mask_small] - y_true[mask_small]) / y_true[mask_small])) * 100
-        mae_small = np.mean(np.abs(y_pred[mask_small] - y_true[mask_small]))
-        print(f"  Small flow (0.1-5.0): MAPE={mape_small:.2f}%, MAE={mae_small:.3f}, count={mask_small.sum()}")
-
-    if mask_medium.sum() > 0:
-        mape_medium = np.mean(np.abs((y_pred[mask_medium] - y_true[mask_medium]) / y_true[mask_medium])) * 100
-        mae_medium = np.mean(np.abs(y_pred[mask_medium] - y_true[mask_medium]))
-        print(f"  Medium flow (5.0-20.0): MAPE={mape_medium:.2f}%, MAE={mae_medium:.3f}, count={mask_medium.sum()}")
-
-    if mask_large.sum() > 0:
-        mape_large = np.mean(np.abs((y_pred[mask_large] - y_true[mask_large]) / y_true[mask_large])) * 100
-        mae_large = np.mean(np.abs(y_pred[mask_large] - y_true[mask_large]))
-        print(f"  Large flow (>=20.0): MAPE={mape_large:.2f}%, MAE={mae_large:.3f}, count={mask_large.sum()}")
-
     rmse_all, mae_all, mape_all = RMSE_MAE_MAPE(y_true, y_pred)
     out_str = f"All Steps RMSE = {rmse_all:.5f}, MAE = {mae_all:.5f}, MAPE = {mape_all:.5f}\n"
 
@@ -468,12 +437,8 @@ def main_worker(rank, world_size, config):
     if world_size > 1:
         gman_model = DDP(gman_model, device_ids=[rank], find_unused_parameters=True)
 
-    # 优化器 - 添加权重衰减以减少过拟合
-    optimizer = torch.optim.Adam(
-        params=gman_model.parameters(),
-        lr=config.training.learning_rate,
-        weight_decay=config.training.get('weight_decay', 1e-4)  # L2正则化
-    )
+    # 优化器
+    optimizer = torch.optim.Adam(params=gman_model.parameters(), lr=config.training.learning_rate)
 
     # 学习率调度 - 使用CosineAnnealing实现平滑衰减
     lr_scheduler = None
