@@ -61,8 +61,9 @@ class GMAN(nn.Module):
             ) for _ in range(L)
         ])
 
+        # 修复: 使用P而不是硬编码的12,适应不同的历史窗口长度
         self.end_conv1 = nn.Conv2d(
-            in_channels=12, out_channels=12, kernel_size=1, bias=True,
+            in_channels=P, out_channels=Q, kernel_size=1, bias=True,
         )
         self.end_conv2 = nn.Conv2d(
             in_channels=self.skip_dim, out_channels=1, kernel_size=1, bias=True,
