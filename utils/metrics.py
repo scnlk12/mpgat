@@ -51,68 +51,26 @@ def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
     return torch.mean(loss)
 
 
-def RMSE(y_true, y_pred, null_val=0):
-    """
-    计算均方根误差(Root Mean Square Error)
-
-    Args:
-        y_true: 真实值
-        y_pred: 预测值
-        null_val: 需要mask的值(默认为0)
-
-    Returns:
-        RMSE值
-    """
+def RMSE(y_true, y_pred):
     with np.errstate(divide="ignore", invalid="ignore"):
-        if np.isnan(null_val):
-            mask = ~np.isnan(y_true)
-        else:
-            mask = np.not_equal(y_true, null_val)
+        mask = np.not_equal(y_true, 0)
         mask = mask.astype(np.float32)
-
-        # 计算平方误差
-        rmse = np.square(y_pred - y_true)
-        rmse = rmse * mask
-        rmse = np.nan_to_num(rmse)
-
-        # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sqrt(np.sum(rmse) / valid_count)
-        else:
-            return 0.0
+        mask /= np.mean(mask)
+        rmse = np.square(np.abs(y_pred - y_true))
+        rmse = np.nan_to_num(rmse * mask)
+        rmse = np.sqrt(np.mean(rmse))
+        return rmse
 
 
-def MAE(y_true, y_pred, null_val=0):
-    """
-    计算平均绝对误差(Mean Absolute Error)
-
-    Args:
-        y_true: 真实值
-        y_pred: 预测值
-        null_val: 需要mask的值(默认为0)
-
-    Returns:
-        MAE值
-    """
+def MAE(y_true, y_pred):
     with np.errstate(divide="ignore", invalid="ignore"):
-        if np.isnan(null_val):
-            mask = ~np.isnan(y_true)
-        else:
-            mask = np.not_equal(y_true, null_val)
+        mask = np.not_equal(y_true, 0)
         mask = mask.astype(np.float32)
-
-        # 计算绝对误差
+        mask /= np.mean(mask)
         mae = np.abs(y_pred - y_true)
-        mae = mae * mask
-        mae = np.nan_to_num(mae)
-
-        # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sum(mae) / valid_count
-        else:
-            return 0.0
+        mae = np.nan_to_num(mae * mask)
+        mae = np.mean(mae)
+        return mae
 
 
 def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
