@@ -18,7 +18,7 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   # 批次大小（多GPU时会自动分配）
-  batch_size: 64
+  batch_size: 16  # 从64降低到16以节省显存
 
 # ==================== 模型配置 ====================
 model:
@@ -88,4 +88,4 @@ misc:
   # 时间片长度（分钟）
   time_slot: 5
   # 是否使用混合精度训练（节省显存）
-  use_amp: false
+  use_amp: true  # 启用FP16混合精度,可节省约50%显存
