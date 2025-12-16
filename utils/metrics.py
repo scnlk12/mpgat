@@ -48,36 +48,52 @@ def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
 
 def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0):
     """
-    Huber Loss: 对小误差使用MSE,对大误差使用MAE
+    Huber Loss (Smooth L1 Loss): 对小误差使用MSE,对大误差使用MAE
     优点: 对离群点更鲁棒,同时保持对小误差的敏感性
+
+    使用PyTorch内置的smooth_l1_loss,数值更稳定,支持FP16混合精度训练
 
     Args:
         preds: 预测值
         labels: 真实值
         null_val: mask掉的空值
         mask_val: mask掉的最小值
-        delta: Huber损失的阈值,误差小于delta用MSE,大于delta用MAE
+        delta: Huber损失的阈值(beta参数),误差小于delta用MSE,大于delta用MAE
     """
-    labels[torch.abs(labels) < 1e-4] = 0
+    # 复制labels避免就地修改
+    labels_copy = labels.clone()
+    labels_copy[torch.abs(labels_copy) < 1e-4] = 0
+
     if np.isnan(null_val):
-        mask = ~torch.isnan(labels)
+        mask = ~torch.isnan(labels_copy)
     else:
-        mask = labels.ne(null_val)
+        mask = labels_copy.ne(null_val)
     if not np.isnan(mask_val):
-        mask &= labels.ge(mask_val)
+        mask &= labels_copy.ge(mask_val)
     mask = mask.float()
-    mask /= torch.mean(mask)
+
+    # 防止除零
+    mask_sum = torch.sum(mask)
+    if mask_sum == 0:
+        return torch.tensor(0.0, device=preds.device, dtype=preds.dtype)
+
     mask = torch.where(torch.isnan(mask), torch.zeros_like(mask), mask)
 
-    # Huber Loss计算
-    error = torch.abs(preds - labels)
-    quadratic = torch.clamp(error, max=delta)
-    linear = error - quadratic
-    loss = 0.5 * quadratic ** 2 + delta * linear
+    # 使用PyTorch内置的smooth_l1_loss (数值更稳定)
+    # reduction='none'返回每个元素的loss
+    # beta参数对应Huber Loss的delta
+    loss = torch.nn.functional.smooth_l1_loss(
+        preds, labels_copy,
+        reduction='none',
+        beta=delta
+    )
 
+    # 应用mask
     loss = loss * mask
     loss = torch.where(torch.isnan(loss), torch.zeros_like(loss), loss)
-    return torch.mean(loss)
+
+    # 只对有效mask求平均
+    return torch.sum(loss) / mask_sum
 
 
 def RMSE(y_true, y_pred, null_val=0):

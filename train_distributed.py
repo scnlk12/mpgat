@@ -190,7 +190,7 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
 
         # 混合精度训练
         if use_amp and amp_scaler is not None:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast('cuda'):  # 使用新的API,避免FutureWarning
                 out_batch = model(x_batch, TE)
                 out_batch = data_scaler.inverse_transform(out_batch)
                 y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
@@ -500,7 +500,8 @@ def main_worker(rank, world_size, config):
         criterion = partial(masked_mae_torch, null_val=0)
     elif config.training.loss_func == 'huber':
         # Huber Loss: 对离群点更鲁棒,有助于降低RMSE
-        criterion = partial(masked_huber_loss, null_val=0, delta=10.0)
+        # delta=1.0: 对于归一化后的数据更合适
+        criterion = partial(masked_huber_loss, null_val=0, delta=1.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 
