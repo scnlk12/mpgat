@@ -118,7 +118,7 @@ def MAE(y_true, y_pred):
         return mae
 
 
-def MAPE(y_true, y_pred, null_val=0, epsilon=1):
+def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
     """
     计算平均绝对百分比误差(Mean Absolute Percentage Error)
 
