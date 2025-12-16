@@ -44,11 +44,11 @@ model:
 # ==================== 训练配置 ====================
 training:
   # 最大训练轮数
-  max_epoch: 400
+  max_epoch: 1000
   # 早停耐心值
   patience: 50
-  # 初始学习率 (降低学习率以适应d=16的大模型)
-  learning_rate: 0.0003
+  # 初始学习率
+  learning_rate: 0.001
   # 梯度裁剪阈值
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
@@ -64,7 +64,7 @@ training:
   gamma: 0.9
 
   # 正则化配置 (增强泛化能力，减少过拟合)
-  weight_decay: 0.0001  # L2正则化
+  weight_decay: 0.0002  # L2正则化
   dropout: 0.1          # Dropout概率
 
   # 学习率预热 (前N个epoch逐步提升学习率)
