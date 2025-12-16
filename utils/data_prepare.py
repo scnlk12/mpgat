@@ -110,15 +110,18 @@ def get_dataloaders(args, log, world_size=1, rank=0):
     eval_data = list(zip(valX, valY))
     test_data = list(zip(testX, testY))
 
+    # 修复: 正确处理元组列表的padding
     num_padding = (args.batch_size - (len(train_data) % args.batch_size)) % args.batch_size
-    data_padding = np.repeat(train_data[-1:], num_padding, axis=0)
-    train_data = np.concatenate([train_data, data_padding], axis=0)
+    if num_padding > 0:
+        train_data.extend([train_data[-1]] * num_padding)
+
     num_padding = (args.batch_size - (len(eval_data) % args.batch_size)) % args.batch_size
-    data_padding = np.repeat(eval_data[-1:], num_padding, axis=0)
-    eval_data = np.concatenate([eval_data, data_padding], axis=0)
+    if num_padding > 0:
+        eval_data.extend([eval_data[-1]] * num_padding)
+
     num_padding = (args.batch_size - (len(test_data) % args.batch_size)) % args.batch_size
-    data_padding = np.repeat(test_data[-1:], num_padding, axis=0)
-    test_data = np.concatenate([test_data, data_padding], axis=0)
+    if num_padding > 0:
+        test_data.extend([test_data[-1]] * num_padding)
 
     train_dataset = ListDataset(train_data)
     eval_dataset = ListDataset(eval_data)
