@@ -39,10 +39,8 @@ class GMAN(nn.Module):
         # 两层网络
         self.feed_forward = nn.Sequential(
             nn.Linear(model_dim, self.K * self.d),
-            nn.LayerNorm(self.K * self.d),
             nn.ReLU(inplace=True),
             nn.Linear(self.K * self.d, self.K * self.d),
-            nn.LayerNorm(self.K * self.d),
         )
 
         # 网络结构
@@ -100,10 +98,8 @@ class STEmbedding(nn.Module):
 
         self.x_forward = nn.Sequential(
             nn.Linear(self.K * self.d, self.K * self.d),
-            nn.LayerNorm(self.K * self.d),
             nn.ReLU(inplace=True),
             nn.Linear(self.K * self.d, self.K * self.d),
-            nn.LayerNorm(self.K * self.d),
         )
 
         # Ea (STAEformer论文) 感觉类似位置编码
