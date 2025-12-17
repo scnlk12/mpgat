@@ -36,13 +36,6 @@ class GMAN(nn.Module):
         # 对节点编码
         self.node_embeddings = nn.Parameter(torch.randn(self.num_node, self.embed_dim), requires_grad=True)
 
-        # 两层网络
-        self.feed_forward = nn.Sequential(
-            nn.Linear(model_dim, self.K * self.d),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.K * self.d, self.K * self.d),
-        )
-
         # 网络结构
         # Use P (history steps) instead of T (total time steps in a day) for adaptive embedding
         self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, P)
@@ -70,7 +63,6 @@ class GMAN(nn.Module):
     def forward(self, x, TE):
         D = self.K * self.d
         # input: transform from model_dim (3) to K*d (64)
-        x = self.feed_forward(x)
         x = self.STE_emb(x, TE)
         # STE
         STE_P = []
@@ -97,7 +89,7 @@ class STEmbedding(nn.Module):
         self.lap_mx = lap_mx
 
         self.x_forward = nn.Sequential(
-            nn.Linear(self.K * self.d, self.K * self.d),
+            nn.Linear(model_dim, self.K * self.d),
             nn.ReLU(inplace=True),
             nn.Linear(self.K * self.d, self.K * self.d),
         )
@@ -110,7 +102,7 @@ class STEmbedding(nn.Module):
         self.dropout = nn.Dropout(drop)
 
     def forward(self, x, TE):
-        B, T, N, D = TE.shape
+        B, _, _, _ = TE.shape
         # Ea
         adp_emb = self.adaptive_embedding.expand(
             size=(B, *self.adaptive_embedding.shape)
