@@ -26,7 +26,8 @@ import yaml
 from utils import data_prepare
 import model
 import utils
-from utils.metrics import RMSE_MAE_MAPE, masked_mae_torch, masked_huber_loss
+from utils.metrics import (RMSE_MAE_MAPE, masked_mae_torch, masked_huber_loss,
+                          masked_mae_torch_weighted, masked_huber_loss_weighted)
 from model import GMAN
 from utils import cal_lape, print_model_parameters
 from utils.config_loader import load_config, save_config, validate_config
@@ -482,19 +483,37 @@ def main_worker(rank, world_size, config):
         )
 
     # 损失函数
+    use_temporal_weighting = config.training.get('use_temporal_weighting', False)
+    weight_scheme = config.training.get('temporal_weight_scheme', 'progressive')
+
+    if rank == 0:
+        if use_temporal_weighting:
+            print(f"Using temporal weighted loss with scheme: {weight_scheme}")
+        else:
+            print(f"Using standard loss: {config.training.loss_func}")
+
     if config.training.loss_func == 'mae':
         criterion = torch.nn.L1Loss()
     elif config.training.loss_func == 'mse':
         criterion = torch.nn.MSELoss()
     elif config.training.loss_func == 'masked_mae':
-        # 修复: 使用-1作为null_val而非0，因为0是真实的零流量而非缺失值
-        # 交通数据中0表示凌晨无车通过，应该参与训练
-        criterion = partial(masked_mae_torch, null_val=-1)
+        if use_temporal_weighting:
+            # 时间步加权的Masked MAE
+            criterion = partial(masked_mae_torch_weighted, null_val=-1, weight_scheme=weight_scheme)
+            if rank == 0:
+                print(f"  -> Using masked_mae_torch_weighted")
+        else:
+            # 标准Masked MAE
+            criterion = partial(masked_mae_torch, null_val=-1)
     elif config.training.loss_func == 'huber':
-        # Huber Loss: 对离群点更鲁棒,有助于降低RMSE
-        # delta设置为数据的合理阈值(对于交通流量,5.0是合理的分界点)
-        # 修复: 使用-1作为null_val而非0，因为0是真实的零流量而非缺失值
-        criterion = partial(masked_huber_loss, null_val=-1, delta=5.0)
+        if use_temporal_weighting:
+            # 时间步加权的Huber Loss
+            criterion = partial(masked_huber_loss_weighted, null_val=-1, delta=5.0, weight_scheme=weight_scheme)
+            if rank == 0:
+                print(f"  -> Using masked_huber_loss_weighted")
+        else:
+            # 标准Huber Loss
+            criterion = partial(masked_huber_loss, null_val=-1, delta=5.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 

@@ -97,6 +97,124 @@ def masked_huber_loss(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0
     return torch.sum(loss) / mask_sum
 
 
+def temporal_weighted_loss(preds, labels, loss_func, weight_scheme='progressive', null_val=np.nan, **kwargs):
+    """
+    时间步加权损失函数 - 对未来步赋予更高权重
+
+    Args:
+        preds: 预测值 [B, T, N] 或 [B, T, N, F]
+        labels: 真实值 [B, T, N] 或 [B, T, N, F]
+        loss_func: 基础损失函数 (masked_mae_torch 或 masked_huber_loss)
+        weight_scheme: 权重方案
+            - 'progressive': 渐进式 (前4步:1.0, 中4步:1.2, 后4步:1.5)
+            - 'linear': 线性递增 (从1.0到2.0)
+            - 'exponential': 指数递增 (1.0, 1.1, 1.2, ..., 1.5)
+            - 'custom': 自定义权重 (通过kwargs['weights']传入)
+        null_val: mask值
+        **kwargs: 传递给基础损失函数的其他参数
+
+    Returns:
+        加权后的损失值
+    """
+    # preds: [B, T, N] 或 [B, T, N, F]
+    if preds.dim() == 3:
+        B, T, N = preds.shape
+    else:
+        B, T, N, F = preds.shape
+
+    # 生成时间步权重
+    if weight_scheme == 'progressive':
+        # 渐进式：前4步1.0, 中4步1.2, 后4步1.5
+        weights = torch.ones(T, device=preds.device)
+        third = T // 3
+        weights[:third] = 1.0
+        weights[third:2*third] = 1.2
+        weights[2*third:] = 1.5
+    elif weight_scheme == 'linear':
+        # 线性递增：从1.0到2.0
+        weights = torch.linspace(1.0, 2.0, T, device=preds.device)
+    elif weight_scheme == 'exponential':
+        # 指数递增：1.0 到 1.5
+        weights = torch.linspace(0, 1, T, device=preds.device)
+        weights = 1.0 + 0.5 * weights  # [1.0, ..., 1.5]
+    elif weight_scheme == 'custom':
+        # 自定义权重
+        weights = kwargs.get('weights', torch.ones(T, device=preds.device))
+        if isinstance(weights, (list, tuple)):
+            weights = torch.tensor(weights, device=preds.device, dtype=preds.dtype)
+    else:
+        raise ValueError(f"Unknown weight_scheme: {weight_scheme}")
+
+    # 计算每个时间步的损失
+    step_losses = []
+    for t in range(T):
+        if preds.dim() == 3:
+            pred_t = preds[:, t, :]  # [B, N]
+            label_t = labels[:, t, :]  # [B, N]
+        else:
+            pred_t = preds[:, t, :, :]  # [B, N, F]
+            label_t = labels[:, t, :, :]  # [B, N, F]
+
+        # 计算该步的损失
+        loss_t = loss_func(pred_t, label_t, null_val=null_val, **kwargs)
+        step_losses.append(loss_t * weights[t])
+
+    # 加权平均
+    total_loss = torch.stack(step_losses).sum() / weights.sum()
+
+    return total_loss
+
+
+def masked_mae_torch_weighted(preds, labels, null_val=np.nan, mask_val=np.nan, weight_scheme='progressive'):
+    """
+    带时间步加权的Masked MAE
+
+    Args:
+        preds: 预测值 [B, T, N]
+        labels: 真实值 [B, T, N]
+        null_val: mask值
+        mask_val: 最小阈值mask
+        weight_scheme: 权重方案 ('progressive', 'linear', 'exponential')
+
+    Returns:
+        加权MAE损失
+    """
+    return temporal_weighted_loss(
+        preds, labels,
+        loss_func=lambda p, l, **kw: masked_mae_torch(p, l, null_val=kw.get('null_val', np.nan), mask_val=kw.get('mask_val', np.nan)),
+        weight_scheme=weight_scheme,
+        null_val=null_val,
+        mask_val=mask_val
+    )
+
+
+def masked_huber_loss_weighted(preds, labels, null_val=np.nan, mask_val=np.nan, delta=1.0, weight_scheme='progressive'):
+    """
+    带时间步加权的Masked Huber Loss
+
+    Args:
+        preds: 预测值 [B, T, N]
+        labels: 真实值 [B, T, N]
+        null_val: mask值
+        mask_val: 最小阈值mask
+        delta: Huber损失的delta参数
+        weight_scheme: 权重方案 ('progressive', 'linear', 'exponential')
+
+    Returns:
+        加权Huber损失
+    """
+    return temporal_weighted_loss(
+        preds, labels,
+        loss_func=lambda p, l, **kw: masked_huber_loss(p, l, null_val=kw.get('null_val', np.nan),
+                                                        mask_val=kw.get('mask_val', np.nan),
+                                                        delta=kw.get('delta', 1.0)),
+        weight_scheme=weight_scheme,
+        null_val=null_val,
+        mask_val=mask_val,
+        delta=delta
+    )
+
+
 def RMSE(y_true, y_pred):
     with np.errstate(divide="ignore", invalid="ignore"):
         mask = np.not_equal(y_true, 0)
