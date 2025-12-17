@@ -404,6 +404,7 @@ def main_worker(rank, world_size, config):
             if i in id_dict and j in id_dict:
                 idx_i = id_dict[i]
                 idx_j = id_dict[j]
+                # 无权矩阵
                 adj_mx[idx_i][idx_j] = 1
                 adj_mx[idx_j][idx_i] = 1
 
@@ -411,7 +412,7 @@ def main_worker(rank, world_size, config):
         print(f"Graph loaded: {num_nodes} nodes, {int(np.sum(adj_mx > 0) / 2)} edges")
 
     # 计算拉普拉斯矩阵
-    lap_mx, LAP = cal_lape(adj_mx)
+    lap_mx, LAP = cal_lape(adj_mx, config.model.lape_dim)
     lap_mx = lap_mx.to(device)
     # Convert sparse matrix to dense tensor
     LAP = torch.from_numpy(LAP.toarray()).float().to(device)
