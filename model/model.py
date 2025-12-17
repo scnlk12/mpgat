@@ -74,8 +74,6 @@ class GMAN(nn.Module):
         # input: transform from model_dim (3) to K*d (64)
         x = self.feed_forward(x)
         x = self.STE_emb(x, TE)
-        # STE
-        STE_P = []
 
         skip = 0
 
@@ -499,27 +497,6 @@ class gatedFusion(nn.Module):
         gate_value = torch.sigmoid(self.gate(concatenated))
         fused_output = gate_value * HT1 + (1 - gate_value) * HT2
         return fused_output
-
-
-class FeedForward(nn.Module):
-    def __init__(self, fea, res_ln=False):
-        super(FeedForward, self).__init__()
-        self.res_ln = res_ln
-        self.L = len(fea) - 1
-        self.linear = nn.ModuleList([nn.Linear(fea[i], fea[i + 1]) for i in range(self.L)])
-        self.ln = nn.LayerNorm(fea[self.L], elementwise_affine=False)
-
-    def forward(self, inputs):
-        x = inputs
-        for i in range(self.L):
-            x = self.linear[i](x)
-            if i != self.L - 1:
-                x = F.relu(x)
-        if self.res_ln:
-            x += inputs
-            x = self.ln(x)
-        return x
-
 
 class Adaptive_Fusion(nn.Module):
     def __init__(self, head, dims):
