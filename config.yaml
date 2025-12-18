@@ -19,7 +19,7 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   # 批次大小（减小batch_size提高更新频率，增强稳定性）
-  batch_size: 64
+  batch_size: 32
 
 # ==================== 模型配置 ====================
 model:
@@ -33,7 +33,7 @@ model:
   # 一天的时间步数 (288 = 24小时 * 12个5分钟)
   T: 288
   # STAttBlock层数
-  L: 1
+  L: 2
   # 注意力头数
   K: 4
   # 每个注意力头的维度
@@ -71,7 +71,7 @@ training:
   # exponential: 从1.0指数增长到1.5
 
   # 学习率衰减配置 (使用CosineAnnealing提供平滑衰减)
-  use_cosine_annealing: false
+  use_cosine_annealing: true
   lr_decay: false
   lr_decay_rate: 0.3
   lr_decay_step: '5,20,40,70'
@@ -86,7 +86,7 @@ training:
 
   # 学习率预热 (前N个epoch逐步提升学习率)
   # 优化: 模型更复杂,延长warmup期
-  warmup_epochs: 15     # 原10 → 15
+  warmup_epochs: 50     # 原10 → 15
 
 # ==================== 日志与保存 ====================
 logging:
