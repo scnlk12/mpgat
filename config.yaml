@@ -35,7 +35,7 @@ model:
   # STAttBlock层数
   L: 2
   # 注意力头数
-  K: 4
+  K: 8
   # 每个注意力头的维度
   # 优化: 增大注意力容量 (总容量=K×d=8×16=128)
   d: 32               # 原8 → 16
@@ -45,7 +45,7 @@ model:
   # 跳跃连接维度
   skip_dim: 256
   # 拉普拉斯矩阵维度 从min(64, N//10)起步，通过验证集实验，确保lape_dim + isolated_point_num + 1 <= N。交通/传感器网络中64是计算与表达力的平衡选择
-  lape_dim: 64
+  lape_dim: 17
 
 # ==================== 训练配置 ====================
 training:
@@ -64,7 +64,7 @@ training:
   loss_func: 'masked_mae'    # 原'masked_mae' → 'huber'
 
   # 时间步加权损失 (对未来步赋予更高权重,改善长期预测)
-  use_temporal_weighting: false  # 是否启用时间步加权
+  use_temporal_weighting: true  # 是否启用时间步加权
   temporal_weight_scheme: 'progressive'  # 权重方案: progressive, linear, exponential
   # progressive: 前4步1.0, 中4步1.2, 后4步1.5
   # linear: 从1.0线性增长到2.0
