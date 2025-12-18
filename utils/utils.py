@@ -22,9 +22,9 @@ def print_model_parameters(model, only_num = True):
     print('Total params num: {}'.format(total_num))
     print('*****************Finish Parameter****************')
 
-def cal_lape(adj_mx):
+def cal_lape(adj_mx, lape_dim):
     # lape_dim = 8
-    lape_dim = 64
+    # lape_dim = 64
     L, isolated_point_num = calculate_normalized_laplacian(adj_mx)
     EigVal, EigVec = np.linalg.eig(L.toarray())
     idx = EigVal.argsort()
