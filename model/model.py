@@ -303,9 +303,10 @@ class Inception_Temporal_Layer(nn.Module):
         self.FC_K = FeedForward([In_channels, In_channels])
         self.FC_V = FeedForward([In_channels, In_channels])
 
-        self.FC_Q4HT = FeedForward([2, In_channels])
-        self.FC_K4HT = FeedForward([2, In_channels])
-        self.FC_V4HT = FeedForward([2, In_channels])
+        # 时间编码变换: 2维 -> In_channels维, 禁用残差连接
+        self.FC_Q4HT = FeedForward([2, In_channels], residual_add=False)
+        self.FC_K4HT = FeedForward([2, In_channels], residual_add=False)
+        self.FC_V4HT = FeedForward([2, In_channels], residual_add=False)
 
         self.dropout = nn.Dropout(p=0.1)
         self.norm1 = nn.LayerNorm(In_channels)
