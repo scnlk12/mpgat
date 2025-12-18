@@ -107,11 +107,18 @@ def train(
                 # 其他scheduler直接调用
                 scheduler.step()
 
+        # 定期清理显存缓存 (每10个epoch)
+        if (epoch + 1) % 10 == 0:
+            torch.cuda.empty_cache()
+            if rank == 0:
+                print(f"[Epoch {epoch + 1}] GPU cache cleared")
+
         # 只在主进程记录
         if rank == 0:
             if writer is not None:
                 writer.add_scalar("Loss/train", train_loss, epoch)
                 writer.add_scalar("Loss/val", val_loss, epoch)
+                writer.flush()  # 立即写入磁盘,避免内存累积
 
             if (epoch + 1) % verbose == 0:
                 print(f"{datetime.datetime.now()} Epoch {epoch + 1:4d} | "
