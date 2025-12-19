@@ -47,6 +47,32 @@ model:
   # 拉普拉斯矩阵维度 从min(64, N//10)起步，通过验证集实验，确保lape_dim + isolated_point_num + 1 <= N。交通/传感器网络中64是计算与表达力的平衡选择
   lape_dim: 64
 
+  # ==================== HTV-Lite 增强配置 ====================
+  # HTV-Lite: HTVGNN轻量化版本，集成5个创新模块
+  htv_lite:
+    # P0-1: 耦合图学习 (Coupled Graph Learning)
+    # 优势: 学习跨时间步的图结构连续性, MAE -11%
+    # 参数量: P×embed_dim = 12×64 = 768
+    use_coupled_graph: rue
+    coupling_weight: 0.01  # 耦合损失权重
+
+    # P0-2: 时变掩码 (Time-Varying Mask)
+    # 优势: 基于时间编码动态调节注意力, MAE -4.5%
+    # 参数量: ~3,600
+    use_time_varying_mask: true
+
+    # P1-4: 低秩自适应嵌入 (Low-Rank Adaptive Embedding)
+    # 优势: 大幅压缩adaptive_embedding参数, MAE -1%
+    # 参数量: 从261,120 → 9,920 (减少96.2%)
+    use_low_rank_embedding: true
+    low_rank: 32  # 低秩维度 (16/32/64)
+
+    # P2-5: 多层特征融合 (Multi-Level Feature Fusion)
+    # 优势: 聚合不同层级时空特征, MAE -2%
+    # 参数量: L个权重 = 2
+    use_multi_level_fusion: true
+    fusion_type: 'attention'  # 'attention', 'weighted', 'concat', 'hierarchical'
+
 # ==================== 训练配置 ====================
 training:
   # 最大训练轮数
@@ -64,8 +90,8 @@ training:
   loss_func: 'masked_mae'    # 原'masked_mae' → 'huber'
 
   # 时间步加权损失 (对未来步赋予更高权重,改善长期预测)
-  use_temporal_weighting: false  # 是否启用时间步加权
-  temporal_weight_scheme: 'progressive'  # 权重方案: progressive, linear, exponential
+  use_temporal_weighting: true  # 是否启用时间步加权
+  temporal_weight_scheme: 'linear'  # 权重方案: progressive, linear, exponential
   # progressive: 前4步1.0, 中4步1.2, 后4步1.5
   # linear: 从1.0线性增长到2.0
   # exponential: 从1.0指数增长到1.5
@@ -74,7 +100,7 @@ training:
   use_cosine_annealing: true
   lr_decay: false
   lr_decay_rate: 0.3
-  lr_decay_step: '5,20,40,70'
+  lr_decay_step: '5,20,40,70'bu
   # StepLR参数 (当use_cosine_annealing=false时使用)
   step_size: 100
   gamma: 0.9

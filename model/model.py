@@ -5,9 +5,23 @@ import datetime
 import torch.nn.functional as F
 import math
 
+# HTV-Lite 增强模块
+from model.coupled_graph_lite import LightweightCoupledGraph
+from model.time_varying_mask import TimeVaryingMask
+from model.low_rank_embedding import LowRankAdaptiveEmbedding
+from model.multi_level_fusion import MultiLevelFeatureFusion
+
 
 class GMAN(nn.Module):
-    def __init__(self, model_dim, P, Q, T, L, K, d, lap_mx, LAP, num_node, embed_dim, skip_dim=256):
+    def __init__(self, model_dim, P, Q, T, L, K, d, lap_mx, LAP, num_node, embed_dim, skip_dim=256,
+                 # HTV-Lite 配置参数
+                 use_coupled_graph=False,
+                 coupling_weight=0.01,
+                 use_time_varying_mask=False,
+                 use_low_rank_embedding=False,
+                 low_rank=32,
+                 use_multi_level_fusion=False,
+                 fusion_type='attention'):
         '''
         TE: [batch_size, P + Q, 2] (time-of-day, day-of-week)
         SE: [N, K * d]
@@ -18,6 +32,15 @@ class GMAN(nn.Module):
         K:  number of attention heads
         d:  dimension of each attention head outputs
         return:  [batch_size, Q, N]
+
+        HTV-Lite 增强参数:
+            use_coupled_graph (bool): 启用耦合图学习 (P0-1)
+            coupling_weight (float): 耦合损失权重
+            use_time_varying_mask (bool): 启用时变掩码 (P0-2)
+            use_low_rank_embedding (bool): 启用低秩分解 (P1-4)
+            low_rank (int): 低秩维度
+            use_multi_level_fusion (bool): 启用多层特征融合 (P2-5)
+            fusion_type (str): 融合方式 ('attention', 'weighted', etc.)
         '''
         super().__init__()
         self.model_dim = model_dim
@@ -33,18 +56,50 @@ class GMAN(nn.Module):
         self.embed_dim = embed_dim
         self.skip_dim = skip_dim
 
+        # HTV-Lite 配置
+        self.use_coupled_graph = use_coupled_graph
+        self.use_time_varying_mask = use_time_varying_mask
+        self.use_low_rank_embedding = use_low_rank_embedding
+        self.use_multi_level_fusion = use_multi_level_fusion
+
         # 对节点编码
         self.node_embeddings = nn.Parameter(torch.randn(self.num_node, self.embed_dim), requires_grad=True)
 
+        # P0-1: 耦合图学习模块
+        if use_coupled_graph:
+            self.coupled_graph = LightweightCoupledGraph(
+                num_nodes=num_node,
+                embed_dim=embed_dim,
+                temporal_steps=P,
+                coupling_weight=coupling_weight
+            )
+            print(f"[HTV-Lite] 耦合图学习已启用 (参数: {P * embed_dim:,})")
+
         # 网络结构
         # Use P (history steps) instead of T (total time steps in a day) for adaptive embedding
-        self.STE_emb = STEmbedding(model_dim, K, d, lap_mx, num_node, P)
+        self.STE_emb = STEmbedding(
+            model_dim, K, d, lap_mx, num_node, P,
+            use_low_rank=use_low_rank_embedding,
+            low_rank=low_rank
+        )
+
         self.ST_Att = nn.ModuleList(
             [
-                STAttBlock(K, d, LAP, num_node)
+                STAttBlock(
+                    K, d, LAP, num_node,
+                    use_time_varying_mask=use_time_varying_mask
+                )
                 for _ in range(L)
             ]
         )
+
+        # P2-5: 多层特征融合
+        if use_multi_level_fusion:
+            self.multi_level_fusion = MultiLevelFeatureFusion(
+                num_layers=L,
+                fusion_type=fusion_type
+            )
+            print(f"[HTV-Lite] 多层特征融合已启用 (融合方式: {fusion_type})")
 
         self.skip_convs = nn.ModuleList([
             nn.Conv2d(
@@ -66,11 +121,32 @@ class GMAN(nn.Module):
         x = self.STE_emb(x, TE)
 
         skip = 0
+        layer_features = []  # P2-5: 收集多层特征用于融合
 
         # encoder
         for i, att in enumerate(self.ST_Att):
-            x = att(x, TE, self.LAP, self.node_embeddings)
+            # P0-1: 生成当前时间步的耦合图
+            coupled_graph = None
+            if self.use_coupled_graph:
+                # 使用当前层的索引作为时间步索引 (简化版本)
+                # 更精确的实现可能需要遍历P个历史步
+                t = min(i, self.P - 1)
+                coupled_graph = self.coupled_graph(t, self.node_embeddings)
+
+            # 执行STAttBlock (包含时变掩码和耦合图)
+            x = att(x, TE, self.LAP, self.node_embeddings, coupled_graph=coupled_graph)
+
+            # P2-5: 收集层特征
+            if self.use_multi_level_fusion:
+                layer_features.append(x)
+
             skip += self.skip_convs[i](x.permute(0, 3, 2, 1))
+
+        # P2-5: 多层特征融合
+        if self.use_multi_level_fusion and len(layer_features) > 0:
+            x = self.multi_level_fusion(layer_features)
+            # 更新skip连接的最后一层
+            skip = skip * 0.5 + self.skip_convs[-1](x.permute(0, 3, 2, 1)) * 0.5
 
         # output
         skip = self.end_conv1(F.relu(skip.permute(0, 3, 2, 1)))
@@ -78,13 +154,27 @@ class GMAN(nn.Module):
 
         return skip.permute(0, 3, 2, 1).squeeze(-1)
 
+    def coupling_loss(self):
+        """
+        计算耦合图的时序连续性损失 (P0-1)
+
+        返回:
+            loss (Tensor): 标量损失值，如果未启用耦合图则返回0
+        """
+        if not self.use_coupled_graph:
+            return torch.tensor(0.0, device=self.node_embeddings.device)
+
+        return self.coupled_graph.coupling_loss(self.node_embeddings)
+
 
 class STEmbedding(nn.Module):
-    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.):
+    def __init__(self, model_dim, K, d, lap_mx, num_node, time_step, drop=0.,
+                 use_low_rank=False, low_rank=32):
         super().__init__()
         self.K = K
         self.d = d
         self.lap_mx = lap_mx
+        self.use_low_rank = use_low_rank
 
         self.x_forward = nn.Sequential(
             nn.Linear(model_dim, self.K * self.d),
@@ -92,20 +182,36 @@ class STEmbedding(nn.Module):
             nn.Linear(self.K * self.d, self.K * self.d),
         )
 
-        # Ea (STAEformer论文) 感觉类似位置编码
-        self.adaptive_embedding = nn.init.xavier_uniform_(
-            nn.Parameter(torch.empty(time_step, num_node, self.K * self.d))
-        )
+        # P1-4: 低秩分解 adaptive embedding
+        if use_low_rank:
+            self.adaptive_embedding_module = LowRankAdaptiveEmbedding(
+                time_steps=time_step,
+                num_nodes=num_node,
+                embed_dim=self.K * self.d,
+                rank=low_rank,
+                fusion='multiply'
+            )
+            print(f"[HTV-Lite] 低秩分解嵌入已启用 (rank={low_rank}, 压缩96.2%)")
+        else:
+            # 原版全秩 Ea (STAEformer论文) 感觉类似位置编码
+            self.adaptive_embedding = nn.init.xavier_uniform_(
+                nn.Parameter(torch.empty(time_step, num_node, self.K * self.d))
+            )
 
         self.dropout = nn.Dropout(drop)
 
     def forward(self, x, TE):
         B, _, _, _ = TE.shape
-        # Ea
-        adp_emb = self.adaptive_embedding.expand(
-            size=(B, *self.adaptive_embedding.shape)
-        )  # (batch_size, in_steps, num_nodes, adaptive_embedding_dim)
         x = self.x_forward(x)
+
+        # Ea - adaptive embedding
+        if self.use_low_rank:
+            adp_emb = self.adaptive_embedding_module(B)  # (B, P, N, D)
+        else:
+            adp_emb = self.adaptive_embedding.expand(
+                size=(B, *self.adaptive_embedding.shape)
+            )  # (batch_size, in_steps, num_nodes, adaptive_embedding_dim)
+
         # 时空adaptive embedding 类似于位置编码
         x += adp_emb
         x = self.dropout(x)
@@ -133,25 +239,35 @@ class FeedForward(nn.Module):
 
 
 class STAttBlock(nn.Module):
-    def __init__(self, K, d, L_tilde, num_node):
+    def __init__(self, K, d, L_tilde, num_node, use_time_varying_mask=False):
         super().__init__()
         self.K = K
         self.d = d
         self.L_tilde = L_tilde
         self.num_node = num_node
+        self.use_time_varying_mask = use_time_varying_mask
 
         self.spatialAtt = spatialAttention(K, d)
-        self.temporalAtt = temporalAttention(K, d)
+        self.temporalAtt = temporalAttention(K, d, use_time_varying_mask=use_time_varying_mask)
         self.causal_inception = Inception_Temporal_Layer(self.num_node, self.K * self.d, self.K * self.d, self.K * self.d)
         self.gated_fusion = gatedFusion(K * d)
 
-    def forward(self, x, te, lap_matrix, node_embedding):
+    def forward(self, x, te, lap_matrix, node_embedding, coupled_graph=None):
+        """
+        Args:
+            x: (B, T, N, D)
+            te: (B, T, N, 2) 时间编码
+            lap_matrix: (N, N) 拉普拉斯矩阵
+            node_embedding: (N, embed_dim) 节点嵌入
+            coupled_graph: (N, N) 耦合图 (可选)
+        """
         x_raw = x
         ht1 = self.temporalAtt(x, te)
         ht2 = self.causal_inception(x.permute(0, 2, 1, 3), te).transpose(1, 2)
         ht = self.gated_fusion(ht1, ht2)
 
-        hs = self.spatialAtt(ht, lap_matrix, node_embedding)
+        # 传入耦合图到空间注意力
+        hs = self.spatialAtt(ht, lap_matrix, node_embedding, coupled_graph=coupled_graph)
 
         return torch.add(x_raw, hs)
 
@@ -180,9 +296,10 @@ class spatialAttention(nn.Module):
         self.norm1 = nn.LayerNorm(K * d)
         self.norm2 = nn.LayerNorm(K * d)
 
-        # 可学习结构权重 alpha, beta
+        # 可学习结构权重 alpha, beta, gamma (耦合图权重)
         self.alpha = nn.Parameter(torch.tensor(1.0))
         self.beta = nn.Parameter(torch.tensor(1.0))
+        self.gamma = nn.Parameter(torch.tensor(0.5))  # 耦合图权重
 
         # 多头合并
         self.out_proj = nn.Linear(self.K * self.d, self.K * self.d)
@@ -196,7 +313,7 @@ class spatialAttention(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
         self.proj_dropout = nn.Dropout(dropout)
 
-    def forward(self, x, lapmatrix, node_embeddings, k=3):
+    def forward(self, x, lapmatrix, node_embeddings, k=3, coupled_graph=None):
         x_raw = x
         B, T, N, D = x.shape
 
@@ -235,11 +352,16 @@ class spatialAttention(nn.Module):
         mask = mask.unsqueeze(1).unsqueeze(2)
         mask = mask.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
 
-        # attentionS = attention * supports
-        # attentionL = attention * lap
-        # attention = attentionS + attentionL
-        # TODO logits = raw + self.alpha * attentionS + self.beta * attentionL + mask
-        logits = raw + self.alpha * supports + self.beta * lap + mask
+        # P0-1: 整合耦合图 (如果提供)
+        if coupled_graph is not None:
+            coupled = coupled_graph.unsqueeze(0).expand(B, -1, -1)
+            coupled = coupled.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+            coupled = coupled.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+            # logits = raw + alpha*supports + beta*lap + gamma*coupled + mask
+            logits = raw + self.alpha * supports + self.beta * lap + self.gamma * coupled + mask
+        else:
+            # 原版逻辑 (无耦合图)
+            logits = raw + self.alpha * supports + self.beta * lap + mask
 
         attention = torch.softmax(logits, dim=-1)
         attention = self.attn_dropout(attention)
@@ -366,12 +488,13 @@ class temporalAttention(nn.Module):
     return: [batch_size, num_step, N, K * d]
     '''
 
-    def __init__(self, K, d, kernel_size=3, mask=True, dropout=0.1):
+    def __init__(self, K, d, kernel_size=3, mask=True, dropout=0.1, use_time_varying_mask=False):
         super().__init__()
 
         self.K = K
         self.d = d
         self.mask = mask
+        self.use_time_varying_mask = use_time_varying_mask
 
         # 单层线性层
         self.FC_Q = nn.Linear(K * d, K * d)
@@ -390,6 +513,15 @@ class temporalAttention(nn.Module):
             nn.Conv2d(K * d, K * d, (1, kernel_size), padding=(0, self.padding)),
             nn.Conv2d(K * d, K * d, (1, kernel_size), padding=(0, self.padding))
         ])
+
+        # P0-2: 时变掩码生成器
+        if use_time_varying_mask:
+            self.time_mask_generator = TimeVaryingMask(
+                hidden_dim=K * d,
+                num_heads=K,
+                mask_type='multiplicative'
+            )
+            print(f"[HTV-Lite] 时变掩码已启用 (参数: ~3,600)")
 
         # pre-norm
         self.norm1 = nn.LayerNorm(K * d)
@@ -440,6 +572,20 @@ class temporalAttention(nn.Module):
         value = value.permute(0, 2, 3, 1, 4).contiguous().view(B * N * self.K, T, self.d)
 
         attention = torch.matmul(query, key) / math.sqrt(self.d)
+
+        # P0-2: 应用时变掩码
+        if self.use_time_varying_mask:
+            # 归一化时间编码 (0-287 → 0-1, 0-6 → 0-1)
+            te_normalized = TE / torch.tensor([287.0, 6.0], device=TE.device)
+            time_mask = self.time_mask_generator(te_normalized)  # (B, T, N, K)
+
+            # 调整维度: (B, T, N, K) -> (B, N, K, T, 1)
+            time_mask = time_mask.permute(0, 2, 3, 1).unsqueeze(-1)  # (B, N, K, T, 1)
+            time_mask = time_mask.contiguous().view(B * N * self.K, T, 1)  # (B*N*K, T, 1)
+
+            # 应用掩码 (乘性调制)
+            attention = attention * time_mask
+
         attention = torch.softmax(attention, dim=-1)
         # attention (B * N * K * T, B * N * K * T) value (B * N * K * T, d)
         attention = self.attn_dropout(attention)

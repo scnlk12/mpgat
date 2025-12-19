@@ -204,6 +204,13 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
                 y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
                 loss = criterion(out_batch, y_batch_inv)
 
+                # P0-1: 添加耦合图损失 (HTV-Lite)
+                if isinstance(model, DDP):
+                    coupling_loss = model.module.coupling_loss()
+                else:
+                    coupling_loss = model.coupling_loss()
+                loss = loss + coupling_loss
+
             amp_scaler.scale(loss).backward()
             if clip_grad:
                 amp_scaler.unscale_(optimizer)
@@ -215,6 +222,13 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
             out_batch = data_scaler.inverse_transform(out_batch)
             y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
             loss = criterion(out_batch, y_batch_inv)
+
+            # P0-1: 添加耦合图损失 (HTV-Lite)
+            if isinstance(model, DDP):
+                coupling_loss = model.module.coupling_loss()
+            else:
+                coupling_loss = model.coupling_loss()
+            loss = loss + coupling_loss
 
             loss.backward()
             if clip_grad:
@@ -424,11 +438,20 @@ def main_worker(rank, world_size, config):
     # Convert sparse matrix to dense tensor
     LAP = torch.from_numpy(LAP.toarray()).float().to(device)
 
-    # 创建模型
+    # 创建模型 (HTV-Lite增强)
+    htv_config = config.model.get('htv_lite', {})
     gman_model = GMAN(
         config.model.input_dim, config.model.P, config.model.Q, config.model.T,
         config.model.L, config.model.K, config.model.d, lap_mx, LAP,
-        num_nodes, config.model.embed_dim, config.model.skip_dim
+        num_nodes, config.model.embed_dim, config.model.skip_dim,
+        # HTV-Lite参数
+        use_coupled_graph=htv_config.get('use_coupled_graph', False),
+        coupling_weight=htv_config.get('coupling_weight', 0.01),
+        use_time_varying_mask=htv_config.get('use_time_varying_mask', False),
+        use_low_rank_embedding=htv_config.get('use_low_rank_embedding', False),
+        low_rank=htv_config.get('low_rank', 32),
+        use_multi_level_fusion=htv_config.get('use_multi_level_fusion', False),
+        fusion_type=htv_config.get('fusion_type', 'attention'),
     )
     gman_model = gman_model.to(device)
 
