@@ -468,6 +468,9 @@ def main_worker(rank, world_size, config):
     # 分布式包装
     if world_size > 1:
         gman_model = DDP(gman_model, device_ids=[rank], find_unused_parameters=True)
+        # 设置静态图模式，解决coupled_graph.gamma被多次标记为就绪的问题
+        # 因为coupling_loss中会多次调用forward，导致参数在计算图中被重复使用
+        gman_model._set_static_graph()
 
     # 优化器 (添加weight_decay支持L2正则化)
     weight_decay = config.training.get('weight_decay', 0.0)
