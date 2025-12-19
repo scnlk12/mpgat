@@ -19,7 +19,7 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   # 批次大小（减小batch_size提高更新频率，增强稳定性）
-  batch_size: 32
+  batch_size: 16
 
 # ==================== 模型配置 ====================
 model:
