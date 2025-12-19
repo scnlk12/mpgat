@@ -64,7 +64,8 @@ model:
     # P1-4: 低秩自适应嵌入 (Low-Rank Adaptive Embedding)
     # 优势: 大幅压缩adaptive_embedding参数, MAE -1%
     # 参数量: 从261,120 → 9,920 (减少96.2%)
-    use_low_rank_embedding: true
+    # 优化: 关闭低秩嵌入，使用全秩版本增强表达能力（训练/验证loss接近，无过拟合风险）
+    use_low_rank_embedding: false
     low_rank: 64  # 低秩维度 (16/32/64) - 提高到64增强表达能力
 
     # P2-5: 多层特征融合 (Multi-Level Feature Fusion)
@@ -90,7 +91,8 @@ training:
   loss_func: 'masked_mae'    # 原'masked_mae' → 'huber'
 
   # 时间步加权损失 (对未来步赋予更高权重,改善长期预测)
-  use_temporal_weighting: true  # 是否启用时间步加权
+  # 优化: 关闭时间步加权，避免过度关注远期预测导致整体MAE上升
+  use_temporal_weighting: false  # 是否启用时间步加权
   temporal_weight_scheme: 'linear'  # 权重方案: progressive, linear, exponential
   # progressive: 前4步1.0, 中4步1.2, 后4步1.5
   # linear: 从1.0线性增长到2.0
