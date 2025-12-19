@@ -53,7 +53,7 @@ model:
     # P0-1: 耦合图学习 (Coupled Graph Learning)
     # 优势: 学习跨时间步的图结构连续性, MAE -11%
     # 参数量: P×embed_dim = 12×64 = 768
-    use_coupled_graph: rue
+    use_coupled_graph: true
     coupling_weight: 0.01  # 耦合损失权重
 
     # P0-2: 时变掩码 (Time-Varying Mask)
@@ -100,7 +100,7 @@ training:
   use_cosine_annealing: true
   lr_decay: false
   lr_decay_rate: 0.3
-  lr_decay_step: '5,20,40,70'bu
+  lr_decay_step: '5,20,40,70'
   # StepLR参数 (当use_cosine_annealing=false时使用)
   step_size: 100
   gamma: 0.9
