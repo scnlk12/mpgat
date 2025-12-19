@@ -123,18 +123,16 @@ class GMAN(nn.Module):
         skip = 0
         layer_features = []  # P2-5: 收集多层特征用于融合
 
+        # P0-1: 预先生成所有时间步的耦合图 (避免在每层重复计算)
+        coupled_graphs = None
+        if self.use_coupled_graph:
+            # 生成P个时间步的图结构 (N, N) -> (P, N, N)
+            coupled_graphs = self.coupled_graph.get_all_graphs(self.node_embeddings)
+
         # encoder
         for i, att in enumerate(self.ST_Att):
-            # P0-1: 生成当前时间步的耦合图
-            coupled_graph = None
-            if self.use_coupled_graph:
-                # 使用当前层的索引作为时间步索引 (简化版本)
-                # 更精确的实现可能需要遍历P个历史步
-                t = min(i, self.P - 1)
-                coupled_graph = self.coupled_graph(t, self.node_embeddings)
-
-            # 执行STAttBlock (包含时变掩码和耦合图)
-            x = att(x, TE, self.LAP, self.node_embeddings, coupled_graph=coupled_graph)
+            # 执行STAttBlock (传入所有时间步的耦合图)
+            x = att(x, TE, self.LAP, self.node_embeddings, coupled_graphs=coupled_graphs)
 
             # P2-5: 收集层特征
             if self.use_multi_level_fusion:
@@ -144,9 +142,11 @@ class GMAN(nn.Module):
 
         # P2-5: 多层特征融合
         if self.use_multi_level_fusion and len(layer_features) > 0:
-            x = self.multi_level_fusion(layer_features)
-            # 更新skip连接的最后一层
-            skip = skip * 0.5 + self.skip_convs[-1](x.permute(0, 3, 2, 1)) * 0.5
+            x_fused = self.multi_level_fusion(layer_features)
+            # 添加融合特征的skip连接,而不是覆盖
+            skip = skip + self.skip_convs[-1](x_fused.permute(0, 3, 2, 1))
+            # 更新x为融合后的特征(虽然后续不再使用x,但保持一致性)
+            x = x_fused
 
         # output
         skip = self.end_conv1(F.relu(skip.permute(0, 3, 2, 1)))
@@ -252,22 +252,22 @@ class STAttBlock(nn.Module):
         self.causal_inception = Inception_Temporal_Layer(self.num_node, self.K * self.d, self.K * self.d, self.K * self.d)
         self.gated_fusion = gatedFusion(K * d)
 
-    def forward(self, x, te, lap_matrix, node_embedding, coupled_graph=None):
+    def forward(self, x, te, lap_matrix, node_embedding, coupled_graphs=None):
         """
         Args:
             x: (B, T, N, D)
             te: (B, T, N, 2) 时间编码
             lap_matrix: (N, N) 拉普拉斯矩阵
             node_embedding: (N, embed_dim) 节点嵌入
-            coupled_graph: (N, N) 耦合图 (可选)
+            coupled_graphs: (P, N, N) 所有时间步的耦合图 (可选)
         """
         x_raw = x
         ht1 = self.temporalAtt(x, te)
         ht2 = self.causal_inception(x.permute(0, 2, 1, 3), te).transpose(1, 2)
         ht = self.gated_fusion(ht1, ht2)
 
-        # 传入耦合图到空间注意力
-        hs = self.spatialAtt(ht, lap_matrix, node_embedding, coupled_graph=coupled_graph)
+        # 传入所有时间步的耦合图到空间注意力
+        hs = self.spatialAtt(ht, lap_matrix, node_embedding, coupled_graphs=coupled_graphs)
 
         return torch.add(x_raw, hs)
 
@@ -313,7 +313,7 @@ class spatialAttention(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
         self.proj_dropout = nn.Dropout(dropout)
 
-    def forward(self, x, lapmatrix, node_embeddings, k=3, coupled_graph=None):
+    def forward(self, x, lapmatrix, node_embeddings, k=3, coupled_graphs=None):
         x_raw = x
         B, T, N, D = x.shape
 
@@ -353,9 +353,10 @@ class spatialAttention(nn.Module):
         mask = mask.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
 
         # P0-1: 整合耦合图 (如果提供)
-        if coupled_graph is not None:
-            coupled = coupled_graph.unsqueeze(0).expand(B, -1, -1)
-            coupled = coupled.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+        if coupled_graphs is not None:
+            # coupled_graphs: (P, N, N), 为每个时间步选择对应的图
+            # 扩展到 (B, T, K, N, N)
+            coupled = coupled_graphs.unsqueeze(0).unsqueeze(2)  # [1, P, 1, N, N]
             coupled = coupled.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
             # logits = raw + alpha*supports + beta*lap + gamma*coupled + mask
             logits = raw + self.alpha * supports + self.beta * lap + self.gamma * coupled + mask

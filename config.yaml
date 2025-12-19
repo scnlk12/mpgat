@@ -51,10 +51,10 @@ model:
   # HTV-Lite: HTVGNN轻量化版本，集成5个创新模块
   htv_lite:
     # P0-1: 耦合图学习 (Coupled Graph Learning)
-    # 优势: 学习跨时间步的图结构连续性, MAE -11%
+    # 优势: 学习跨时间步的图结构连续性, MAE -11%c
     # 参数量: P×embed_dim = 12×64 = 768
     use_coupled_graph: true
-    coupling_weight: 0.01  # 耦合损失权重
+    coupling_weight: 0.01  # 耦合损失权
 
     # P0-2: 时变掩码 (Time-Varying Mask)
     # 优势: 基于时间编码动态调节注意力, MAE -4.5%
@@ -65,7 +65,7 @@ model:
     # 优势: 大幅压缩adaptive_embedding参数, MAE -1%
     # 参数量: 从261,120 → 9,920 (减少96.2%)
     use_low_rank_embedding: true
-    low_rank: 32  # 低秩维度 (16/32/64)
+    low_rank: 64  # 低秩维度 (16/32/64) - 提高到64增强表达能力
 
     # P2-5: 多层特征融合 (Multi-Level Feature Fusion)
     # 优势: 聚合不同层级时空特征, MAE -2%
