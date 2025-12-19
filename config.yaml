@@ -45,7 +45,7 @@ model:
   # 跳跃连接维度
   skip_dim: 256
   # 拉普拉斯矩阵维度 从min(64, N//10)起步，通过验证集实验，确保lape_dim + isolated_point_num + 1 <= N。交通/传感器网络中64是计算与表达力的平衡选择
-  lape_dim: 17
+  lape_dim: 64
 
 # ==================== 训练配置 ====================
 training:
@@ -81,7 +81,8 @@ training:
 
   # 正则化配置 (增强泛化能力，减少过拟合)
   # 优化: 降低weight_decay避免欠拟合,增加dropout防止过拟合
-  weight_decay: 0.00005  # 原0.0002 → 0.0001
+  # weight_decay: 0.00005  # 原0.0002 → 0.0001
+  weight_decay: 0.0001
   dropout: 0.1         # 原0.1 → 0.15
 
   # 学习率预热 (前N个epoch逐步提升学习率)
