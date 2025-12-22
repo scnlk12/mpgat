@@ -88,8 +88,10 @@ class STEmbedding(nn.Module):
 
         self.x_forward = nn.Sequential(
             nn.Linear(model_dim, self.K * self.d),
-            nn.ReLU(inplace=True),
-            nn.Linear(self.K * self.d, self.K * self.d),
+            nn.ReLU(),
+            nn.Linear(self.K * self.d, 4 * self.K * self.d),
+            nn.ReLU(),
+            nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
         # Ea (STAEformer论文) 感觉类似位置编码
