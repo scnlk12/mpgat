@@ -635,6 +635,8 @@ def load_model_and_data(args):
 
     lap_mx, LAP = cal_lape(adj_mx, args.lape_dim)
     lap_mx = lap_mx.to(device)
+    # Convert sparse matrix to dense tensor
+    LAP = torch.from_numpy(LAP.toarray()).float().to(device)
 
     # 加载模型
     print("加载模型...")
