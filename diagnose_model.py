@@ -20,7 +20,7 @@ from collections import defaultdict
 import datetime
 
 import utils
-import data_prepare
+from utils import data_prepare
 from model import GMAN
 from utils import cal_lape
 from utils.metrics import RMSE_MAE_MAPE
@@ -214,7 +214,7 @@ class ModelDiagnostics:
         # 检查系统性偏差
         avg_bias_ratio = np.mean([abs(s['bias_ratio']) for s in timestep_stats])
         if avg_bias_ratio > 10:
-            bias_direction = "过预测" if np.mean([s['bias']) for s in timestep_stats]) > 0 else "欠预测"
+            bias_direction = "过预测" if np.mean([s['bias'] for s in timestep_stats]) > 0 else "欠预测"
             print(f"\n  ⚠️  存在系统性{bias_direction}! (平均偏差率: {avg_bias_ratio:.1f}%)")
             print(f"\n💡 优化建议:")
             print(f"  1. 检查数据归一化方法")
