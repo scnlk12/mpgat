@@ -633,12 +633,13 @@ def load_model_and_data(args):
                 adj_mx[idx_i][idx_j] = 1
                 adj_mx[idx_j][idx_i] = 1
 
-    lap_mx, LAP = cal_lape(adj_mx)
+    lap_mx, LAP = cal_lape(adj_mx, args.lape_dim)
     lap_mx = lap_mx.to(device)
 
     # 加载模型
     print("加载模型...")
-    model = GMAN(args.input_dim, args.P, args.Q, args.T, args.L, args.K, args.d, lap_mx, LAP)
+    model = GMAN(args.input_dim, args.P, args.Q, args.T, args.L, args.K, args.d, lap_mx, LAP,
+                 num_nodes, args.embed_dim)
     model = model.to(device)
 
     if args.model_path:
@@ -656,10 +657,11 @@ if __name__ == "__main__":
     parser.add_argument('--Q', type=int, default=12)
     parser.add_argument('--L', type=int, default=2)
     parser.add_argument('--T', type=int, default=288)
-    parser.add_argument('--embed_dim', type=int, default=1)
-    parser.add_argument('--K', type=int, default=8)
+    parser.add_argument('--embed_dim', type=int, default=64)  # Updated to match config
+    parser.add_argument('--K', type=int, default=4)  # Updated to match config
     parser.add_argument('--input_dim', type=int, default=3)
-    parser.add_argument('--d', type=int, default=8)
+    parser.add_argument('--d', type=int, default=32)  # Updated to match config
+    parser.add_argument('--lape_dim', type=int, default=64)  # Added lape_dim parameter
     parser.add_argument('--train_ratio', type=float, default=0.6)
     parser.add_argument('--val_ratio', type=float, default=0.2)
     parser.add_argument('--test_ratio', type=float, default=0.2)

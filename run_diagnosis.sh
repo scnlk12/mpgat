@@ -11,19 +11,21 @@ echo ""
 # ============ 配置区域 - 请修改这里 ============
 
 # 数据集
-DATASET="PEMS03"
-TRAFFIC_FILE="data/PEMS03/PEMS03.npz"
+DATASET="PEMS08"
+TRAFFIC_FILE="data/PEMS08/PEMS08.npz"
 
 # 模型路径 - 修改为你的模型文件
-MODEL_PATH="./saved_models/GMAN-PEMS03-xxx.pt"
+MODEL_PATH="./saved_models/GMAN-PEMS08-2025-12-22-09-51-53.pt"
 
-# 模型参数
+# 模型参数 (需要与训练时的config.yaml一致)
 P=12
 Q=12
 L=2
-K=8
-D=8
+K=4  # 从config.yaml: K=4
+D=32  # 从config.yaml: d=32
 INPUT_DIM=3
+EMBED_DIM=64  # 从config.yaml: embed_dim=64
+LAPE_DIM=64  # 从config.yaml: lape_dim=64
 BATCH_SIZE=16
 
 # 输出目录
@@ -55,12 +57,14 @@ echo "开始诊断..."
 echo ""
 
 # 运行诊断
-python diagnose_model.py \
+uv run diagnose_model.py \
     --traffic_file "$TRAFFIC_FILE" \
     --model_path "$MODEL_PATH" \
     --output_dir "$OUTPUT_DIR" \
     --P $P --Q $Q --L $L --K $K --d $D \
     --input_dim $INPUT_DIM \
+    --embed_dim $EMBED_DIM \
+    --lape_dim $LAPE_DIM \
     --batch_size $BATCH_SIZE
 
 if [ $? -ne 0 ]; then
