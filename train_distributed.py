@@ -122,7 +122,8 @@ def train(
 
             if (epoch + 1) % verbose == 0:
                 print(f"{datetime.datetime.now()} Epoch {epoch + 1:4d} | "
-                      f"Train Loss = {train_loss:.5f} | Val Loss = {val_loss:.5f}")
+                      f"Train Loss = {train_loss:.5f} | Val Loss = {val_loss:.5f} | "
+                      f"")
 
                 if log is not None:
                     str_out = (f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}\t"
@@ -201,7 +202,8 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
             with torch.amp.autocast('cuda'):  # 使用新的API,避免FutureWarning
                 out_batch = model(x_batch, TE)
                 out_batch = data_scaler.inverse_transform(out_batch)
-                y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
+                y_batch_inv = y_batch[:, :, :, 0]
+                # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
                 loss = criterion(out_batch, y_batch_inv)
 
             amp_scaler.scale(loss).backward()
@@ -213,7 +215,8 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
         else:
             out_batch = model(x_batch, TE)
             out_batch = data_scaler.inverse_transform(out_batch)
-            y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
+            y_batch_inv = y_batch[:, :, :, 0]
+            # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
             loss = criterion(out_batch, y_batch_inv)
 
             loss.backward()
@@ -242,7 +245,8 @@ def eval_model(model, valset_loader, criterion, rank, data_scaler):
 
         out_batch = model(x_batch, TE)
         out_batch = data_scaler.inverse_transform(out_batch)
-        y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
+        y_batch = y_batch[:, :, :, 0]
+        # y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
         loss = criterion(out_batch, y_batch)
         batch_loss_list.append(loss.item())
 
@@ -267,7 +271,8 @@ def predict(model, loader, rank, data_scaler):
 
         out_batch = model(x_batch, TE)
         out_batch = data_scaler.inverse_transform(out_batch)
-        y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
+        y_batch = y_batch[:, :, :, 0]
+        # y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
 
         out_batch = out_batch.cpu().numpy()
         y_batch = y_batch.cpu().numpy()
@@ -435,7 +440,7 @@ def main_worker(rank, world_size, config):
     # 参数初始化
     for p in gman_model.parameters():
         if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
+            nn.init.xavier_normal_(p)
         else:
             nn.init.uniform_(p)
 

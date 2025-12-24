@@ -100,11 +100,11 @@ def get_dataloaders(args, log, world_size=1, rank=0):
     scaler = StandardScaler(mean=trainX[..., 0].mean(), std=trainX[..., 0].std())
 
     trainX[..., 0] = scaler.transform(trainX[..., 0])
-    trainY[..., 0] = scaler.transform(trainY[..., 0])
+    # trainY[..., 0] = scaler.transform(trainY[..., 0])
     valX[..., 0] = scaler.transform(valX[..., 0])
-    valY[..., 0] = scaler.transform(valY[..., 0])
+    # valY[..., 0] = scaler.transform(valY[..., 0])
     testX[..., 0] = scaler.transform(testX[..., 0])
-    testY[..., 0] = scaler.transform(testY[..., 0])
+    # testY[..., 0] = scaler.transform(testY[..., 0])
 
     train_data = list(zip(trainX, trainY))
     eval_data = list(zip(valX, valY))
