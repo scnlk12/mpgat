@@ -440,7 +440,7 @@ def main_worker(rank, world_size, config):
     # 参数初始化
     for p in gman_model.parameters():
         if p.dim() > 1:
-            nn.init.xavier_normal_(p)
+            nn.init.xavier_uniform_(p)
         else:
             nn.init.uniform_(p)
 
