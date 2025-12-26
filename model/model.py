@@ -204,7 +204,7 @@ class spatialAttention(nn.Module):
         x_raw = x
         B, T, N, D = x.shape
 
-        x = self.norm1(x)
+        # x = self.norm1(x)
 
         query = self.FC_Q(x)
         key = self.FC_K(x)
@@ -255,9 +255,10 @@ class spatialAttention(nn.Module):
         x1 = self.proj_dropout(x1)
         # add
         x1 = x_raw + x1
+        x1 = self.norm1(x1)
 
         # y = x + FFN( LN(x) )
-        return x1 + self.two_layer_feed_forward(self.norm2(x1))
+        return self.norm2(x1 + self.two_layer_feed_forward(x1))
 
 
 class Inception_Temporal_Layer(nn.Module):
@@ -417,7 +418,11 @@ class temporalAttention(nn.Module):
         expected_D = self.K * self.d
         assert D == expected_D, f"last dim D must equal K*d ({expected_D}), got {D}"
         # pre-norm
-        x = self.norm1(x)
+        # x = self.norm1(x)
+
+        # Post-Norm架构：
+        # 1. 先做attention子层 (x -> attn(x) -> x + attn(x) -> norm1)
+        # 2. 再做FFN子层   ((x + attn(x)) -> ffn(x + attn(x)) -> x + attn(x) + ffn(...) -> norm2)
 
         query = self.FC_Q(x)
         key = self.FC_K(x)
@@ -455,9 +460,10 @@ class temporalAttention(nn.Module):
         x1 = self.proj_dropout(x1)
         # add
         x1 = x_raw + x1
+        x1 = self.norm1(x1)  # post-norm for attention
 
         # y = x + FFN( LN(x) )
-        return x1 + self.two_layer_feed_forward(self.norm2(x1))
+        return self.norm2(x1 + self.two_layer_feed_forward(x1))
 
 
 class gatedFusion(nn.Module):
