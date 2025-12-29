@@ -258,8 +258,9 @@ def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
             mask = np.not_equal(y_true, null_val)
 
         # 过滤绝对值小于epsilon的值以避免除零和数值不稳定
-        mask = mask & (np.abs(y_true) >= epsilon)
+        # mask = mask & (np.abs(y_true) >= epsilon)
         mask = mask.astype("float32")
+        mask /= np.mean(mask)
 
         # 计算百分比误差
         mape = np.abs(np.divide(y_pred - y_true, y_true))
@@ -267,13 +268,15 @@ def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
 
         # 只对有效值求平均(不进行mask归一化)
         mape = np.nan_to_num(mape)
-        valid_count = np.sum(mask)
+        mape = np.mean(mape)
+        return mape
+        # valid_count = np.sum(mask)
 
-        if valid_count > 0:
-            # 返回百分比值(0-100)
-            return np.sum(mape) / valid_count * 100
-        else:
-            return 0.0
+        # if valid_count > 0:
+        #     # 返回百分比值(0-100)
+        #     return np.sum(mape) / valid_count * 100
+        # else:
+        #     return 0.0
     
 
 def RMSE_MAE_MAPE(y_true, y_pred):
