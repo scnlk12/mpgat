@@ -292,39 +292,7 @@ class Inception_Temporal_Layer(nn.Module):
         # self.conv1_1 = CausalConv1d(5 * Hid_channels, Out_channels, 1, groups=1)
         self.projection = nn.Linear(Hid_channels, Out_channels)
 
-        self.FC_Q = FeedForward([In_channels, In_channels])
-        self.FC_K = FeedForward([In_channels, In_channels])
-        self.FC_V = FeedForward([In_channels, In_channels])
-
-        # 时间编码变换: 2维 -> In_channels维, 禁用残差连接
-        self.FC_Q4HT = FeedForward([2, In_channels], residual_add=False)
-        self.FC_K4HT = FeedForward([2, In_channels], residual_add=False)
-        self.FC_V4HT = FeedForward([2, In_channels], residual_add=False)
-
-        self.dropout = nn.Dropout(p=0.1)
-        self.norm1 = nn.LayerNorm(In_channels)
-
     def forward(self, inputs, TE):
-        query = self.FC_Q(inputs)
-        key = self.FC_K(inputs)
-        value = self.FC_V(inputs)
-
-        # query = query.transpose(1, 2)
-        # key = key.transpose(1, 2).transpose(2, 3)
-        # value = value.transpose(1, 2)
-        key = key.transpose(2, 3)
-
-        query4HT = self.FC_Q4HT(TE.transpose(1, 2))
-        key4HT = self.FC_K4HT(TE.transpose(1, 2))
-        key4HT = key4HT.transpose(2, 3)
-
-        attention = torch.matmul(query4HT, key4HT)
-        attention /= (self.d ** 0.5)
-        attention = torch.softmax(attention, dim=-1)
-        attention = self.dropout(attention)
-        x = torch.matmul(attention, value)
-        x = x + inputs
-        x1 = self.norm1(x)
 
         # (Batch_size, Number_Station, Seq_len, In_channel)
         B, N, T, C = inputs.shape
@@ -341,7 +309,6 @@ class Inception_Temporal_Layer(nn.Module):
         merged = merged.transpose(1, 2).reshape(B, N, T, C)
         outputs = self.projection(merged)
 
-        # return outputs + x1
         return outputs
 
 
