@@ -20,18 +20,21 @@ def MSE(y_true, y_pred, null_val=0):
         else:
             mask = np.not_equal(y_true, null_val)
         mask = mask.astype(np.float32)
+        mask /= torch.mean((mask))
 
         # 计算平方误差
         mse = np.square(y_pred - y_true)
         mse = mse * mask
         mse = np.nan_to_num(mse)
+        mse = np.mean(mse)
+        return mse
 
         # 只对有效值求平均(不进行mask归一化)
-        valid_count = np.sum(mask)
-        if valid_count > 0:
-            return np.sum(mse) / valid_count
-        else:
-            return 0.0
+        # valid_count = np.sum(mask)
+        # if valid_count > 0:
+        #     return np.sum(mse) / valid_count
+        # else:
+        #     return 0.0
 
 
 def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
