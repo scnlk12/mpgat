@@ -266,7 +266,7 @@ class Inception_Temporal_Layer(nn.Module):
         super(Inception_Temporal_Layer, self).__init__()
 
         self.num_stations = num_stations
-        self.act = nn.LeakyReLU()
+        # self.act = nn.LeakyReLU()
         self.d = In_channels
 
         self.conv = CausalConv1d(In_channels, In_channels, 1, dilation=1, groups=1)
@@ -275,7 +275,7 @@ class Inception_Temporal_Layer(nn.Module):
         self.branches = nn.ModuleList([
             nn.Sequential(
                 CausalConv1d(Hid_channels, Hid_channels, k),
-                nn.LeakyReLU()
+                nn.SiLU()
             )
             for k in kernels
         ])
