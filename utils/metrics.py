@@ -2,39 +2,20 @@ import numpy as np
 import torch
 
 
-def MSE(y_true, y_pred, null_val=0):
-    """
-    计算均方误差(Mean Square Error)
-
-    Args:
-        y_true: 真实值
-        y_pred: 预测值
-        null_val: 需要mask的值(默认为0)
-
-    Returns:
-        MSE值
-    """
+def MSE(y_true, y_pred, null_val=np.nan):
     with np.errstate(divide="ignore", invalid="ignore"):
         if np.isnan(null_val):
             mask = ~np.isnan(y_true)
         else:
             mask = np.not_equal(y_true, null_val)
+        
         mask = mask.astype(np.float32)
-        mask /= torch.mean((mask))
+        mask /= np.mean(mask)  # 修正：使用 np.mean
 
-        # 计算平方误差
         mse = np.square(y_pred - y_true)
         mse = mse * mask
         mse = np.nan_to_num(mse)
-        mse = np.mean(mse)
-        return mse
-
-        # 只对有效值求平均(不进行mask归一化)
-        # valid_count = np.sum(mask)
-        # if valid_count > 0:
-        #     return np.sum(mse) / valid_count
-        # else:
-        #     return 0.0
+        return np.mean(mse)
 
 
 def masked_mae_torch(preds, labels, null_val=np.nan, mask_val=np.nan):
@@ -217,79 +198,51 @@ def masked_huber_loss_weighted(preds, labels, null_val=np.nan, mask_val=np.nan, 
         delta=delta
     )
 
+def RMSE(y_true, y_pred, null_val=np.nan):
+    # 复用 MSE 的逻辑，开根号即可
+    return np.sqrt(MSE(y_true, y_pred, null_val))
 
-def RMSE(y_true, y_pred):
+def MAE(y_true, y_pred, null_val=np.nan):
     with np.errstate(divide="ignore", invalid="ignore"):
-        mask = np.not_equal(y_true, 0)
-        mask = mask.astype(np.float32)
-        mask /= np.mean(mask)
-        rmse = np.square(np.abs(y_pred - y_true))
-        rmse = np.nan_to_num(rmse * mask)
-        rmse = np.sqrt(np.mean(rmse))
-        return rmse
-
-
-def MAE(y_true, y_pred):
-    with np.errstate(divide="ignore", invalid="ignore"):
-        mask = np.not_equal(y_true, 0)
-        mask = mask.astype(np.float32)
-        mask /= np.mean(mask)
-        mae = np.abs(y_pred - y_true)
-        mae = np.nan_to_num(mae * mask)
-        mae = np.mean(mae)
-        return mae
-
-
-def MAPE(y_true, y_pred, null_val=0, epsilon=1e-3):
-    """
-    计算平均绝对百分比误差(Mean Absolute Percentage Error)
-
-    Args:
-        y_true: 真实值
-        y_pred: 预测值
-        null_val: 需要mask的值
-        epsilon: 最小阈值,过滤小于此值的真实值以避免除零错误
-
-    Returns:
-        MAPE值(百分比,已乘以100)
-    """
-    with np.errstate(divide="ignore", invalid="ignore"):
-        # 创建mask: 过滤null值和小于epsilon的值
         if np.isnan(null_val):
             mask = ~np.isnan(y_true)
         else:
             mask = np.not_equal(y_true, null_val)
-
-        # 过滤绝对值小于epsilon的值以避免除零和数值不稳定
-        # mask = mask & (np.abs(y_true) >= epsilon)
-        mask = mask.astype("float32")
+            
+        mask = mask.astype(np.float32)
         mask /= np.mean(mask)
+        
+        mae = np.abs(y_pred - y_true)
+        mae = mae * mask
+        mae = np.nan_to_num(mae)
+        return np.mean(mae)
 
-        # 计算百分比误差
-        mape = np.abs(np.divide(y_pred - y_true, y_true))
+def MAPE(y_true, y_pred, null_val=0):
+    with np.errstate(divide="ignore", invalid="ignore"):
+        if np.isnan(null_val):
+            mask = ~np.isnan(y_true)
+        else:
+            mask = np.not_equal(y_true, null_val)
+            
+        # 增加一步：防止 y_true 为 0 导致除以 0 异常（虽然 mask 可能会过滤掉，但双重保险）
+        mask = mask & (np.abs(y_true) > 1e-4)
+        
+        mask = mask.astype(np.float32)
+        mask /= np.mean(mask)
+        
+        mape = np.abs((y_pred - y_true) / y_true)
         mape = mape * mask
-
-        # 只对有效值求平均(不进行mask归一化)
         mape = np.nan_to_num(mape)
-        mape = np.mean(mape)
-        return mape
-        # valid_count = np.sum(mask)
-
-        # if valid_count > 0:
-        #     # 返回百分比值(0-100)
-        #     return np.sum(mape) / valid_count * 100
-        # else:
-        #     return 0.0
+        
+        # 修正：乘以 100，使其成为百分比
+        return np.mean(mape) * 100
     
-
 def RMSE_MAE_MAPE(y_true, y_pred):
     return (
         RMSE(y_true, y_pred),
         MAE(y_true, y_pred),
         MAPE(y_true, y_pred),
     )
-
-
 def RMSE_MAE_MAPE_with_zero_stats(y_true, y_pred, epsilon=1e-3):
     """
     计算RMSE, MAE, MAPE，并额外统计零值的预测情况
