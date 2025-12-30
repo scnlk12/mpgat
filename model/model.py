@@ -73,8 +73,8 @@ class GMAN(nn.Module):
             skip += self.skip_convs[i](x.permute(0, 3, 2, 1))
 
         # output
-        skip = self.end_conv1(F.silu(skip.permute(0, 3, 2, 1)))
-        skip = self.end_conv2(F.silu(skip.permute(0, 3, 2, 1)))
+        skip = self.end_conv1(F.leaky_relu(skip.permute(0, 3, 2, 1)))
+        skip = self.end_conv2(F.leaky_relu(skip.permute(0, 3, 2, 1)))
 
         return skip.permute(0, 3, 2, 1).squeeze(-1)
 
@@ -88,9 +88,9 @@ class STEmbedding(nn.Module):
 
         self.x_forward = nn.Sequential(
             nn.Linear(model_dim, self.K * self.d),
-            nn.SiLU(),
+            nn.LeakyReLU(),
             nn.Linear(self.K * self.d, 4 * self.K * self.d),
-            nn.SiLU(),
+            nn.LeakyReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
@@ -129,7 +129,7 @@ class FeedForward(nn.Module):
             x = self.linear[i](x)
             if i != self.L - 1:
                 # x = F.relu(x)
-                x = F.silu(x)
+                x = F.leaky_relu(x)
         if self.residual_add:
             x += inputs
         return x
@@ -193,7 +193,7 @@ class spatialAttention(nn.Module):
         self.two_layer_feed_forward = nn.Sequential(
             nn.Linear(K * d, 4 * self.K * self.d),
             # nn.ReLU(),
-            nn.SiLU(),
+            nn.LeakyReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
@@ -222,7 +222,7 @@ class spatialAttention(nn.Module):
         raw = attention
         # mask (consider graph structure)
         # torch.mm 矩阵乘法
-        supports = F.softmax(F.silu(torch.mm(node_embeddings, node_embeddings.transpose(0, 1))), dim=1)
+        supports = F.softmax(F.leaky_relu(torch.mm(node_embeddings, node_embeddings.transpose(0, 1))), dim=1)
         # 二值化support矩阵 （感觉可以改阈值）
         # supports = supports > 0.5
         supports = supports.unsqueeze(0).expand(B, -1, -1)
@@ -275,7 +275,7 @@ class Inception_Temporal_Layer(nn.Module):
         self.branches = nn.ModuleList([
             nn.Sequential(
                 CausalConv1d(Hid_channels, Hid_channels, k),
-                nn.SiLU()
+                nn.LeakyReLU(),
             )
             for k in kernels
         ])
@@ -372,7 +372,7 @@ class temporalAttention(nn.Module):
 
         self.two_layer_feed_forward = nn.Sequential(
             nn.Linear(K * d, 4 * self.K * self.d),
-            nn.SiLU(),
+            nn.LeakyReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
@@ -451,7 +451,7 @@ class gatedFusion(nn.Module):
 
         self.gate = nn.Sequential(
             nn.Linear(2 * D, D),
-            nn.SiLU(),
+            nn.LeakyReLU(),
             nn.Linear(D, D),
         )
 
