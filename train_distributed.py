@@ -118,6 +118,7 @@ def train(
             if writer is not None:
                 writer.add_scalar("Loss/train", train_loss, epoch)
                 writer.add_scalar("Loss/val", val_loss, epoch)
+                writer.add_scalar("LR", optimizer.param_groups[0]['lr'], epoch)
                 writer.flush()  # 立即写入磁盘,避免内存累积
 
             if (epoch + 1) % verbose == 0:
@@ -189,10 +190,12 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
         trainset_loader = tqdm(trainset_loader, desc="Training", leave=False)
 
     for batch in trainset_loader:
-        batch.to_tensor(f'cuda:{rank}')
+        # 现在的 batch 是一个列表 [x, y]
+        x_batch, y_batch = batch
+        # 手动搬运到 GPU
+        x_batch = x_batch.to(f'cuda:{rank}', non_blocking=True)
+        y_batch = y_batch.to(f'cuda:{rank}', non_blocking=True)
 
-        x_batch = batch['x']
-        y_batch = batch['y']
         TE = x_batch[:, :, :, 1:]
 
         optimizer.zero_grad()
@@ -201,7 +204,7 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
         if use_amp and amp_scaler is not None:
             with torch.amp.autocast('cuda'):  # 使用新的API,避免FutureWarning
                 out_batch = model(x_batch, TE)
-                out_batch = data_scaler.inverse_transform(out_batch)
+                # out_batch = data_scaler.inverse_transform(out_batch)
                 y_batch_inv = y_batch[:, :, :, 0]
                 # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
                 loss = criterion(out_batch, y_batch_inv)
@@ -214,7 +217,7 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
             amp_scaler.update()
         else:
             out_batch = model(x_batch, TE)
-            out_batch = data_scaler.inverse_transform(out_batch)
+            # out_batch = data_scaler.inverse_transform(out_batch)
             y_batch_inv = y_batch[:, :, :, 0]
             # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
             loss = criterion(out_batch, y_batch_inv)
@@ -237,14 +240,13 @@ def eval_model(model, valset_loader, criterion, rank, data_scaler):
     batch_loss_list = []
 
     for batch in valset_loader:
-        batch.to_tensor(f'cuda:{rank}')
-
-        x_batch = batch['x']
-        y_batch = batch['y']
+        x_batch, y_batch = batch
+        x_batch = x_batch.to(f'cuda:{rank}', non_blocking=True)
+        y_batch = y_batch.to(f'cuda:{rank}', non_blocking=True)
         TE = x_batch[:, :, :, 1:]
 
         out_batch = model(x_batch, TE)
-        out_batch = data_scaler.inverse_transform(out_batch)
+        # out_batch = data_scaler.inverse_transform(out_batch)
         y_batch = y_batch[:, :, :, 0]
         # y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
         loss = criterion(out_batch, y_batch)
@@ -264,9 +266,9 @@ def predict(model, loader, rank, data_scaler):
     out = []
 
     for batch in loader:
-        batch.to_tensor(f'cuda:{rank}')
-        x_batch = batch['x']
-        y_batch = batch['y']
+        x_batch, y_batch = batch
+        x_batch = x_batch.to(f'cuda:{rank}')
+        y_batch = y_batch.to(f'cuda:{rank}')
         TE = x_batch[:, :, :, 1:]
 
         out_batch = model(x_batch, TE)
@@ -279,10 +281,10 @@ def predict(model, loader, rank, data_scaler):
         out.append(out_batch)
         y.append(y_batch)
 
-    out = np.vstack(out).squeeze()
-    y = np.vstack(y).squeeze()
+    y_pred = np.concatenate(out, axis=0)
+    y_true = np.concatenate(y, axis=0)
 
-    return y, out
+    return y_true, y_pred
 
 
 @torch.no_grad()
@@ -526,7 +528,7 @@ def main_worker(rank, world_size, config):
                 print(f"  -> Using masked_huber_loss_weighted")
         else:
             # 标准Huber Loss
-            criterion = partial(masked_huber_loss, null_val=-1, delta=5.0)
+            criterion = partial(masked_huber_loss, null_val=-1, delta=1.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 
