@@ -110,27 +110,27 @@ def train(
         # 定期清理显存缓存 (每10个epoch)
         if (epoch + 1) % 10 == 0:
             torch.cuda.empty_cache()
-            if rank == 0:
-                print(f"[Epoch {epoch + 1}] GPU cache cleared")
+            # if rank == 0:
+            print(f"[Epoch {epoch + 1}] GPU cache cleared")
 
         # 只在主进程记录
-        if rank == 0:
-            if writer is not None:
-                writer.add_scalar("Loss/train", train_loss, epoch)
-                writer.add_scalar("Loss/val", val_loss, epoch)
-                writer.add_scalar("LR", optimizer.param_groups[0]['lr'], epoch)
-                writer.flush()  # 立即写入磁盘,避免内存累积
+        # if rank == 0:
+        if writer is not None:
+            writer.add_scalar("Loss/train", train_loss, epoch)
+            writer.add_scalar("Loss/val", val_loss, epoch)
+            writer.add_scalar("LR", optimizer.param_groups[0]['lr'], epoch)
+            writer.flush()  # 立即写入磁盘,避免内存累积
 
-            if (epoch + 1) % verbose == 0:
-                print(f"{datetime.datetime.now()} Epoch {epoch + 1:4d} | "
-                      f"Train Loss = {train_loss:.5f} | Val Loss = {val_loss:.5f} | "
-                      f"")
+        if (epoch + 1) % verbose == 0:
+            print(f"{datetime.datetime.now()} Epoch {epoch + 1:4d} | "
+                    f"Train Loss = {train_loss:.5f} | Val Loss = {val_loss:.5f} | "
+                    f"")
 
-                if log is not None:
-                    str_out = (f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}\t"
-                              f"Epoch {epoch + 1}\tTrain Loss = {train_loss:.5f}, "
-                              f"Val Loss = {val_loss:.5f}")
-                    utils.log_string(log, str_out)
+            if log is not None:
+                str_out = (f"{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}\t"
+                            f"Epoch {epoch + 1}\tTrain Loss = {train_loss:.5f}, "
+                            f"Val Loss = {val_loss:.5f}")
+                utils.log_string(log, str_out)
 
         # 早停逻辑
         if val_loss < min_val_loss:
@@ -138,42 +138,42 @@ def train(
             min_val_loss = val_loss
             best_epoch = epoch
             # 保存最佳模型（只在主进程）
-            if rank == 0:
-                if isinstance(model, DDP):
-                    best_state_dict = copy.deepcopy(model.module.state_dict())
-                else:
-                    best_state_dict = copy.deepcopy(model.state_dict())
+            # if rank == 0:
+            if isinstance(model, DDP):
+                best_state_dict = copy.deepcopy(model.module.state_dict())
+            else:
+                best_state_dict = copy.deepcopy(model.state_dict())
         else:
             wait += 1
             if wait >= early_stop:
-                if rank == 0:
-                    print(f"Early stop at epoch: {epoch + 1}")
+                # if rank == 0:
+                print(f"Early stop at epoch: {epoch + 1}")
                 break
 
     # 加载最佳模型
-    if rank == 0:
-        if isinstance(model, DDP):
-            model.module.load_state_dict(best_state_dict)
-        else:
-            model.load_state_dict(best_state_dict)
+    # if rank == 0:
+    if isinstance(model, DDP):
+        model.module.load_state_dict(best_state_dict)
+    else:
+        model.load_state_dict(best_state_dict)
 
-        # 评估
-        train_rmse, train_mae, train_mape = RMSE_MAE_MAPE(*predict(model, trainset_loader, rank, data_scaler))
-        val_rmse, val_mae, val_mape = RMSE_MAE_MAPE(*predict(model, valset_loader, rank, data_scaler))
+    # 评估
+    train_rmse, train_mae, train_mape = RMSE_MAE_MAPE(*predict(model, trainset_loader, rank, data_scaler))
+    val_rmse, val_mae, val_mape = RMSE_MAE_MAPE(*predict(model, valset_loader, rank, data_scaler))
 
-        out_str = f"Early stopping at epoch: {epoch + 1}\n"
-        out_str += f"Best at epoch {best_epoch + 1}:\n"
-        out_str += f"Train Loss = {train_loss_list[best_epoch]:.5f}\n"
-        out_str += f"Train RMSE = {train_rmse:.5f}, MAE = {train_mae:.5f}, MAPE = {train_mape:.5f}\n"
-        out_str += f"Val Loss = {val_loss_list[best_epoch]:.5f}\n"
-        out_str += f"Val RMSE = {val_rmse:.5f}, MAE = {val_mae:.5f}, MAPE = {val_mape:.5f}"
+    out_str = f"Early stopping at epoch: {epoch + 1}\n"
+    out_str += f"Best at epoch {best_epoch + 1}:\n"
+    out_str += f"Train Loss = {train_loss_list[best_epoch]:.5f}\n"
+    out_str += f"Train RMSE = {train_rmse:.5f}, MAE = {train_mae:.5f}, MAPE = {train_mape:.5f}\n"
+    out_str += f"Val Loss = {val_loss_list[best_epoch]:.5f}\n"
+    out_str += f"Val RMSE = {val_rmse:.5f}, MAE = {val_mae:.5f}, MAPE = {val_mape:.5f}"
 
-        print(out_str)
-        if log is not None:
-            utils.log_string(log, out_str)
+    print(out_str)
+    if log is not None:
+        utils.log_string(log, out_str)
 
-        if save:
-            torch.save(best_state_dict, save)
+    if save:
+        torch.save(best_state_dict, save)
 
     return model
 
@@ -185,9 +185,9 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
     batch_loss_list = []
 
     # 添加进度条 (仅主进程)
-    if rank == 0:
-        from tqdm import tqdm
-        trainset_loader = tqdm(trainset_loader, desc="Training", leave=False)
+    # if rank == 0:
+    from tqdm import tqdm
+    trainset_loader = tqdm(trainset_loader, desc="Training", leave=False)
 
     for batch in trainset_loader:
         # 现在的 batch 是一个列表 [x, y]
@@ -332,27 +332,27 @@ def main_worker(rank, world_size, config):
     device = torch.device(f'cuda:{rank}')
 
     # 只在主进程打印和记录日志
-    if rank == 0:
-        print(f"Using {world_size} GPU(s) for training")
-        print(f"Config:\n{yaml.dump(config.to_dict(), default_flow_style=False)}")
+    # if rank == 0:
+    print(f"Using {world_size} GPU(s) for training")
+    print(f"Config:\n{yaml.dump(config.to_dict(), default_flow_style=False)}")
 
     # 创建日志
     log = None
     writer = None
-    if rank == 0:
-        os.makedirs(config.logging.log_dir, exist_ok=True)
-        log_file = os.path.join(
-            config.logging.log_dir,
-            f"log_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.txt"
-        )
-        log = open(log_file, 'w')
-        utils.log_string(log, str(config.to_dict()))
+    # if rank == 0:
+    os.makedirs(config.logging.log_dir, exist_ok=True)
+    log_file = os.path.join(
+        config.logging.log_dir,
+        f"log_{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.txt"
+    )
+    log = open(log_file, 'w')
+    utils.log_string(log, str(config.to_dict()))
 
-        writer = SummaryWriter(log_dir=config.logging.tensorboard_dir)
+    writer = SummaryWriter(log_dir=config.logging.tensorboard_dir)
 
     # 加载数据
-    if rank == 0:
-        print('Loading data...')
+    # if rank == 0:
+    print('Loading data...')
 
     # 转换config为argparse.Namespace以兼容现有代码
     class Args:
@@ -370,8 +370,8 @@ def main_worker(rank, world_size, config):
         args, log=log, world_size=world_size, rank=rank
     )
 
-    if rank == 0:
-        print('Data loaded!')
+    # if rank == 0:
+    print('Data loaded!')
 
     # 加载图结构
     dataset_name = config.data.traffic_file.split('/')[-1].replace('.npz', '')
@@ -379,9 +379,9 @@ def main_worker(rank, world_size, config):
     txt_file = os.path.join(dataset_dir, f'{dataset_name}.txt')
     csv_file = os.path.join(dataset_dir, f'{dataset_name}.csv')
 
-    if rank == 0:
-        print(f"Using dataset: {dataset_name}")
-        print(f"Graph structure file: {csv_file}")
+    # if rank == 0:
+    print(f"Using dataset: {dataset_name}")
+    print(f"Graph structure file: {csv_file}")
 
     # 读取图结构
     temp_nodes = set()
@@ -403,8 +403,8 @@ def main_worker(rank, world_size, config):
         id_dict = {node_id: idx for idx, node_id in enumerate(sorted_nodes)}
         num_nodes = len(sorted_nodes)
 
-    if rank == 0:
-        print(f"Number of nodes: {num_nodes}")
+    # if rank == 0:
+    print(f"Number of nodes: {num_nodes}")
 
     # 构建邻接矩阵
     adj_mx = np.zeros((num_nodes, num_nodes), dtype=float)
@@ -422,8 +422,8 @@ def main_worker(rank, world_size, config):
                 adj_mx[idx_i][idx_j] = 1
                 adj_mx[idx_j][idx_i] = 1
 
-    if rank == 0:
-        print(f"Graph loaded: {num_nodes} nodes, {int(np.sum(adj_mx > 0) / 2)} edges")
+    # if rank == 0:
+    print(f"Graph loaded: {num_nodes} nodes, {int(np.sum(adj_mx > 0) / 2)} edges")
 
     # 计算拉普拉斯矩阵
     lap_mx, LAP = cal_lape(adj_mx, config.model.lape_dim)
@@ -446,8 +446,8 @@ def main_worker(rank, world_size, config):
         else:
             nn.init.uniform_(p)
 
-    if rank == 0:
-        print_model_parameters(gman_model, only_num=False)
+    # if rank == 0:
+    print_model_parameters(gman_model, only_num=False)
 
     # 分布式包装
     if world_size > 1:
@@ -501,11 +501,11 @@ def main_worker(rank, world_size, config):
     use_temporal_weighting = config.training.get('use_temporal_weighting', False)
     weight_scheme = config.training.get('temporal_weight_scheme', 'progressive')
 
-    if rank == 0:
-        if use_temporal_weighting:
-            print(f"Using temporal weighted loss with scheme: {weight_scheme}")
-        else:
-            print(f"Using standard loss: {config.training.loss_func}")
+    # if rank == 0:
+    if use_temporal_weighting:
+        print(f"Using temporal weighted loss with scheme: {weight_scheme}")
+    else:
+        print(f"Using standard loss: {config.training.loss_func}")
 
     if config.training.loss_func == 'mae':
         criterion = torch.nn.L1Loss()
@@ -515,8 +515,8 @@ def main_worker(rank, world_size, config):
         if use_temporal_weighting:
             # 时间步加权的Masked MAE
             criterion = partial(masked_mae_torch_weighted, null_val=-1, weight_scheme=weight_scheme)
-            if rank == 0:
-                print(f"  -> Using masked_mae_torch_weighted")
+            # if rank == 0:
+            print(f"  -> Using masked_mae_torch_weighted")
         else:
             # 标准Masked MAE
             criterion = partial(masked_mae_torch, null_val=-1)
@@ -524,8 +524,8 @@ def main_worker(rank, world_size, config):
         if use_temporal_weighting:
             # 时间步加权的Huber Loss
             criterion = partial(masked_huber_loss_weighted, null_val=-1, delta=5.0, weight_scheme=weight_scheme)
-            if rank == 0:
-                print(f"  -> Using masked_huber_loss_weighted")
+            # if rank == 0:
+            print(f"  -> Using masked_huber_loss_weighted")
         else:
             # 标准Huber Loss
             criterion = partial(masked_huber_loss, null_val=-1, delta=1.0)
@@ -539,10 +539,10 @@ def main_worker(rank, world_size, config):
 
     # 模型保存路径
     save_path = None
-    if rank == 0:
-        os.makedirs(config.saving.model_dir, exist_ok=True)
-        now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        save_path = os.path.join(config.saving.model_dir, f"GMAN-{dataset_name}-{now}.pt")
+    # if rank == 0:
+    os.makedirs(config.saving.model_dir, exist_ok=True)
+    now = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    save_path = os.path.join(config.saving.model_dir, f"GMAN-{dataset_name}-{now}.pt")
 
     # 训练
     gman_model = train(
@@ -550,20 +550,20 @@ def main_worker(rank, world_size, config):
         criterion, config, data_scaler, writer, log, save_path, rank, amp_scaler
     )
 
-    if rank == 0:
-        print(f"Saved Model: {save_path}")
-        if log:
-            utils.log_string(log, f"Saved Model: {save_path}")
+    # if rank == 0:
+    print(f"Saved Model: {save_path}")
+    if log:
+        utils.log_string(log, f"Saved Model: {save_path}")
 
     # 测试
     test_model(gman_model, test_loader, rank, data_scaler, log)
 
     # 清理
-    if rank == 0:
-        if writer:
-            writer.close()
-        if log:
-            log.close()
+    # if rank == 0:
+    if writer:
+        writer.close()
+    if log:
+        log.close()
 
     if world_size > 1:
         cleanup_distributed()
