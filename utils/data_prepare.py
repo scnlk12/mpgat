@@ -42,7 +42,7 @@ def get_dataloaders(args, log, world_size=1, rank=0):
     time_ind = np.array(time_ind)
     time_in_day = np.tile(time_ind, [1, N, 1]).transpose((2, 1, 0))
     # 需要进行归一化
-    time_in_day_norm = time_in_day / args.T  # 归一化到 [0, 1)
+    time_in_day_norm = time_in_day / 288  # 归一化到 [0, 1)
 
     # time_in_day 16992 × 307 × 1
     feature_list.append(time_in_day_norm)
