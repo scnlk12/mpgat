@@ -433,7 +433,7 @@ if __name__ == "__main__":
     # weight_decay 权值衰减
     # optimizer = torch.optim.Adam(params=model.parameters(), lr=args.learning_rate, eps=1.0e-8,
     #                          weight_decay=True, amsgrad=False)
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=args.learning_rate, weight_decay=1e-4)
 
 
     #learning rate decay

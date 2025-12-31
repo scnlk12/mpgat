@@ -1,0 +1,15 @@
+✓ 配置验证通过
+Available GPUs: 3
+Using GPUs: [1]
+Traceback (most recent call last):
+  File "/root/mpgat/train_distributed.py", line 617, in <module>
+    main()
+  File "/root/mpgat/train_distributed.py", line 609, in main
+    main_worker(gpu_ids[0], 1, config)
+  File "/root/mpgat/train_distributed.py", line 369, in main_worker
+    train_loader, val_loader, test_loader, data_scaler = data_prepare.get_dataloaders(
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/mpgat/utils/data_prepare.py", line 45, in get_dataloaders
+    time_in_day_norm = time_in_day / args.T  # 归一化到 [0, 1)
+                                     ^^^^^^
+AttributeError: 'Args' object has no attribute 'T'
