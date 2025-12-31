@@ -188,7 +188,6 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
     # if rank == 0:
     from tqdm import tqdm
     trainset_loader = tqdm(trainset_loader, desc="Training", leave=False)
-
     for batch in trainset_loader:
         # 现在的 batch 是一个列表 [x, y]
         x_batch, y_batch = batch
@@ -451,7 +450,8 @@ def main_worker(rank, world_size, config):
 
     # 分布式包装
     if world_size > 1:
-        gman_model = DDP(gman_model, device_ids=[rank], find_unused_parameters=True)
+        # 禁用find_unused_parameters以避免NCCL同步死锁
+        gman_model = DDP(gman_model, device_ids=[rank], find_unused_parameters=False)
 
     # 优化器 (添加weight_decay支持L2正则化)
     weight_decay = config.training.get('weight_decay', 0.0)
