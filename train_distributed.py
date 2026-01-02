@@ -289,8 +289,8 @@ def predict(model, loader, rank, data_scaler):
 @torch.no_grad()
 def test_model(model, testset_loader, rank, data_scaler, log=None):
     """测试模型"""
-    if rank != 0:
-        return
+    # if rank != 0:
+    #     return
 
     model.eval()
     print("--------- Test ---------")
