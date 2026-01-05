@@ -69,7 +69,7 @@ class GMAN(nn.Module):
             in_channels=self.skip_dim, out_channels=1, kernel_size=1, bias=True,
         )
 
-    def forward(self, x, TE):
+    def forward(self, x, TE, return_embedding=False):
         D = self.K * self.d
         # input: transform from model_dim (3) to K*d (64)
         x = self.feed_forward(x)
@@ -84,6 +84,14 @@ class GMAN(nn.Module):
 
         # output
         skip = self.end_conv1(F.relu(skip.permute(0, 3, 2, 1)))
+
+        # 保存 embedding 用于迁移学习
+        # skip 形状: [B, Q, N, 256]
+        embedding = skip
+
+        if return_embedding:
+            return embedding
+
         skip = self.end_conv2(F.relu(skip.permute(0, 3, 2, 1)))
 
         return skip.permute(0, 3, 2, 1).squeeze(-1)
