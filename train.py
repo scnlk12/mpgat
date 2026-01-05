@@ -135,10 +135,11 @@ def save_model_with_epoch(epoch, log, config):
 
 
 @torch.no_grad()
-def predict(model, loader):
+def predict(model, loader, return_embeddings=False):
     model.eval()
     y = []
     out = []
+    embeddings = [] if return_embeddings else None
 
     for batch in loader:
         batch.to_tensor(DEVICE)
@@ -147,6 +148,11 @@ def predict(model, loader):
 
         # TE = torch.cat((x_batch[:, :, :, 1:], y_batch[:, :, :, 1:]), dim=1)
         TE = x_batch[:, :, :, 1:]
+
+        # 提取 embedding（如果需要）
+        if return_embeddings:
+            embedding_batch = model(x_batch, TE, return_embedding=True)
+            embeddings.append(embedding_batch.cpu().numpy())
 
         # out_batch = model(torch.unsqueeze(x_batch[:, :, :, 0], -1), TE)
         out_batch = model(x_batch, TE)
@@ -160,6 +166,10 @@ def predict(model, loader):
 
     out = np.vstack(out).squeeze()  # (samples, out_steps, num_nodes)
     y = np.vstack(y).squeeze()
+
+    if return_embeddings:
+        embeddings = np.vstack(embeddings)  # (samples, Q, num_nodes, 256)
+        return y, out, embeddings
 
     return y, out
 
@@ -468,6 +478,38 @@ if __name__ == "__main__":
 
         print(f"Saved Model: {save}")
         utils.log_string(log, "Saved Model:" + save)
+
+        # 自动保存 embeddings 用于迁移学习
+        print("\n" + "="*60)
+        print("Extracting embeddings for transfer learning...")
+        utils.log_string(log, "Extracting embeddings for transfer learning...")
+
+        embedding_dir = "./embeddings"
+        if not os.path.exists(embedding_dir):
+            os.makedirs(embedding_dir)
+
+        # 在测试集上提取 embeddings
+        y_test, pred_test, embeddings_test = predict(model, test_loader, return_embeddings=True)
+
+        # 保存 embeddings
+        embedding_save_path = os.path.join(embedding_dir, f"{dataset_name}_embeddings.npz")
+        np.savez_compressed(
+            embedding_save_path,
+            embeddings=embeddings_test,  # [N, Q, num_nodes, 256]
+            labels=y_test,               # [N, Q, num_nodes]
+            predictions=pred_test,       # [N, Q, num_nodes]
+            mean=SCALER.mean_,
+            std=SCALER.scale_,
+            dataset=dataset_name,
+        )
+
+        print(f"✓ Embeddings saved to: {embedding_save_path}")
+        print(f"  - embeddings: {embeddings_test.shape}")
+        print(f"  - labels: {y_test.shape}")
+        print(f"  - predictions: {pred_test.shape}")
+        utils.log_string(log, f"Embeddings saved: {embedding_save_path}")
+        utils.log_string(log, f"  embeddings: {embeddings_test.shape}, labels: {y_test.shape}")
+        print("="*60 + "\n")
 
         test_model(model, test_loader, log=log)
     # except Exception as e:
