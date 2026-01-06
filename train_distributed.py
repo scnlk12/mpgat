@@ -250,7 +250,7 @@ def eval_model(model, valset_loader, criterion, rank, data_scaler):
 
 
 @torch.no_grad()
-def predict(model, loader, rank, data_scaler):
+def predict(model, loader, rank, data_scaler, return_embeddings=False):
     """预测"""
     if isinstance(model, DDP):
         model = model.module
@@ -258,12 +258,18 @@ def predict(model, loader, rank, data_scaler):
 
     y = []
     out = []
+    embeddings = [] if return_embeddings else None
 
     for batch in loader:
         batch.to_tensor(f'cuda:{rank}')
         x_batch = batch['x']
         y_batch = batch['y']
         TE = x_batch[:, :, :, 1:]
+
+        # 提取 embedding（如果需要）
+        if return_embeddings:
+            embedding_batch = model(x_batch, TE, return_embedding=True)
+            embeddings.append(embedding_batch.cpu().numpy())
 
         out_batch = model(x_batch, TE)
         out_batch = data_scaler.inverse_transform(out_batch)
@@ -276,6 +282,10 @@ def predict(model, loader, rank, data_scaler):
 
     out = np.vstack(out).squeeze()
     y = np.vstack(y).squeeze()
+
+    if return_embeddings:
+        embeddings = np.vstack(embeddings)  # (samples, Q, num_nodes, 256)
+        return y, out, embeddings
 
     return y, out
 
@@ -546,6 +556,70 @@ def main_worker(rank, world_size, config):
         print(f"Saved Model: {save_path}")
         if log:
             utils.log_string(log, f"Saved Model: {save_path}")
+
+        # 自动保存 embeddings 用于迁移学习
+        if config.saving.get('auto_save_embeddings', True):
+            print("\n" + "="*60)
+            print("Extracting embeddings for transfer learning...")
+            if log:
+                utils.log_string(log, "Extracting embeddings for transfer learning...")
+
+            embedding_dir = config.saving.get('embedding_dir', './embeddings')
+            os.makedirs(embedding_dir, exist_ok=True)
+
+            # 在测试集上提取 embeddings
+            y_test, pred_test, embeddings_test = predict(
+                gman_model, test_loader, rank, data_scaler, return_embeddings=True
+            )
+
+            # 获取保存格式
+            embedding_format = config.saving.get('embedding_format', 'npz')
+
+            # 保存 NPZ 格式
+            if embedding_format in ['npz', 'both']:
+                npz_path = os.path.join(embedding_dir, f"{dataset_name}_embeddings.npz")
+                np.savez_compressed(
+                    npz_path,
+                    embeddings=embeddings_test,  # [N, Q, num_nodes, 256]
+                    labels=y_test,               # [N, Q, num_nodes]
+                    predictions=pred_test,       # [N, Q, num_nodes]
+                    mean=data_scaler.mean_,
+                    std=data_scaler.scale_,
+                    dataset=dataset_name,
+                )
+                npz_size = os.path.getsize(npz_path) / (1024**2)  # MB
+                print(f"✓ NPZ saved to: {npz_path} ({npz_size:.2f} MB)")
+                if log:
+                    utils.log_string(log, f"NPZ saved: {npz_path} ({npz_size:.2f} MB)")
+
+            # 保存 PT 格式
+            if embedding_format in ['pt', 'both']:
+                pt_path = os.path.join(embedding_dir, f"{dataset_name}_embeddings.pt")
+                torch.save({
+                    'embeddings': torch.from_numpy(embeddings_test),
+                    'labels': torch.from_numpy(y_test),
+                    'predictions': torch.from_numpy(pred_test),
+                    'mean': data_scaler.mean_,
+                    'std': data_scaler.scale_,
+                    'dataset': dataset_name,
+                    'config': {
+                        'P': config.model.P,
+                        'Q': config.model.Q,
+                        'num_nodes': num_nodes,
+                        'embed_dim': config.model.skip_dim,
+                    }
+                }, pt_path)
+                pt_size = os.path.getsize(pt_path) / (1024**2)  # MB
+                print(f"✓ PT saved to: {pt_path} ({pt_size:.2f} MB)")
+                if log:
+                    utils.log_string(log, f"PT saved: {pt_path} ({pt_size:.2f} MB)")
+
+            print(f"  - embeddings: {embeddings_test.shape}")
+            print(f"  - labels: {y_test.shape}")
+            print(f"  - predictions: {pred_test.shape}")
+            if log:
+                utils.log_string(log, f"  Shape: embeddings={embeddings_test.shape}, labels={y_test.shape}")
+            print("="*60 + "\n")
 
     # 测试
     test_model(gman_model, test_loader, rank, data_scaler, log)

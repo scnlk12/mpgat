@@ -100,6 +100,15 @@ saving:
   model_dir: './saved_models'
   # 是否保存最佳模型
   save_best: true
+  # Embedding 保存配置
+  embedding_dir: './embeddings'
+  # Embedding 保存格式: 'npz' (推荐), 'pt', 'both'
+  # npz: 压缩numpy格式，跨平台，文件小，适合迁移学习
+  # pt: PyTorch格式，保留tensor信息，适合纯PyTorch流程
+  # both: 同时保存两种格式
+  embedding_format: 'npz'
+  # 是否自动保存 embeddings（训练完成后）
+  auto_save_embeddings: true
 
 # ==================== 其他配置 ====================
 misc:
