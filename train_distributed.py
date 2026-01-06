@@ -583,8 +583,8 @@ def main_worker(rank, world_size, config):
                     embeddings=embeddings_test,  # [N, Q, num_nodes, 256]
                     labels=y_test,               # [N, Q, num_nodes]
                     predictions=pred_test,       # [N, Q, num_nodes]
-                    mean=data_scaler.mean_,
-                    std=data_scaler.scale_,
+                    mean=data_scaler.mean,
+                    std=data_scaler.std,
                     dataset=dataset_name,
                 )
                 npz_size = os.path.getsize(npz_path) / (1024**2)  # MB
@@ -599,8 +599,8 @@ def main_worker(rank, world_size, config):
                     'embeddings': torch.from_numpy(embeddings_test),
                     'labels': torch.from_numpy(y_test),
                     'predictions': torch.from_numpy(pred_test),
-                    'mean': data_scaler.mean_,
-                    'std': data_scaler.scale_,
+                    'mean': data_scaler.mean,
+                    'std': data_scaler.std,
                     'dataset': dataset_name,
                     'config': {
                         'P': config.model.P,

@@ -498,8 +498,8 @@ if __name__ == "__main__":
             embeddings=embeddings_test,  # [N, Q, num_nodes, 256]
             labels=y_test,               # [N, Q, num_nodes]
             predictions=pred_test,       # [N, Q, num_nodes]
-            mean=SCALER.mean_,
-            std=SCALER.scale_,
+            mean=SCALER.mean,
+            std=SCALER.std,
             dataset=dataset_name,
         )
 
