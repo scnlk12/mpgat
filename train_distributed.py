@@ -200,9 +200,9 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
         if use_amp and amp_scaler is not None:
             with torch.amp.autocast('cuda'):  # 使用新的API,避免FutureWarning
                 out_batch = model(x_batch, TE)
-                out_batch = data_scaler.inverse_transform(out_batch)
-                y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-                loss = criterion(out_batch, y_batch_inv)
+                # 在归一化空间计算loss（更稳定）
+                y_batch_normalized = y_batch[:, :, :, 0]
+                loss = criterion(out_batch, y_batch_normalized)
 
             amp_scaler.scale(loss).backward()
             if clip_grad:
@@ -212,9 +212,9 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
             amp_scaler.update()
         else:
             out_batch = model(x_batch, TE)
-            out_batch = data_scaler.inverse_transform(out_batch)
-            y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-            loss = criterion(out_batch, y_batch_inv)
+            # 在归一化空间计算loss（更稳定）
+            y_batch_normalized = y_batch[:, :, :, 0]
+            loss = criterion(out_batch, y_batch_normalized)
 
             loss.backward()
             if clip_grad:
@@ -241,9 +241,9 @@ def eval_model(model, valset_loader, criterion, rank, data_scaler):
         TE = x_batch[:, :, :, 1:]
 
         out_batch = model(x_batch, TE)
-        out_batch = data_scaler.inverse_transform(out_batch)
-        y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-        loss = criterion(out_batch, y_batch)
+        # 在归一化空间计算loss（与训练保持一致）
+        y_batch_normalized = y_batch[:, :, :, 0]
+        loss = criterion(out_batch, y_batch_normalized)
         batch_loss_list.append(loss.item())
 
     return np.mean(batch_loss_list)
