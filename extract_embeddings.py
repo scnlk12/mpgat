@@ -3,7 +3,7 @@
 
 这个脚本会：
 1. 加载训练好的模型
-2. 在测试集上提取 end_conv1 后的 embedding [B, Q, N, 256]
+2. 提取指定数据集（train/val/test/all）的 embedding [B, Q, N, 256]
 3. 保存 embedding 和对应的标签用于迁移学习
 """
 
@@ -17,13 +17,17 @@ from utils.data_prepare import data_loader
 from utils.utils import compute_laplacian_matrix
 
 
-def extract_embeddings(config_path='config.yaml', save_dir='embeddings'):
+def extract_embeddings(config_path='config.yaml', save_dir='embeddings',
+                      checkpoint_path=None, split='all', save_path=None):
     """
     提取模型的 embedding
 
     Args:
         config_path: 配置文件路径
         save_dir: 保存 embedding 的目录
+        checkpoint_path: 模型权重文件路径，如果为 None 则使用默认路径
+        split: 提取哪个数据集 ('train', 'val', 'test', 'all')
+        save_path: 完整的保存路径，如果指定则忽略 save_dir
     """
     # 读取配置
     with open(config_path) as f:
@@ -68,43 +72,86 @@ def extract_embeddings(config_path='config.yaml', save_dir='embeddings'):
     ).to(device)
 
     # 加载训练好的权重
-    checkpoint_path = f"checkpoints/{config['data']['dataset']}/best_model.pth"
+    if checkpoint_path is None:
+        checkpoint_path = f"checkpoints/{config['data']['dataset']}/best_model.pth"
+
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"找不到模型文件: {checkpoint_path}")
 
+    print(f"从 {checkpoint_path} 加载模型权重...")
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
     print(f"模型加载成功，来自 epoch {checkpoint.get('epoch', 'unknown')}")
 
-    # 提取 embedding
-    print("提取 embeddings...")
+    # 确定要处理的数据加载器
+    if split == 'train':
+        dataloaders = [('train', train_dataloader)]
+    elif split == 'val':
+        dataloaders = [('val', val_dataloader)]
+    elif split == 'test':
+        dataloaders = [('test', test_dataloader)]
+    elif split == 'all':
+        dataloaders = [
+            ('train', train_dataloader),
+            ('val', val_dataloader),
+            ('test', test_dataloader)
+        ]
+    else:
+        raise ValueError(f"无效的 split 参数: {split}，必须是 'train', 'val', 'test' 或 'all'")
 
-    embeddings_list = []
-    labels_list = []
-    inputs_list = []
+    # 提取 embedding
+    print(f"提取 {split} 数据集的 embeddings...")
+
+    all_embeddings = {}
+    all_labels = {}
+    all_inputs = {}
 
     with torch.no_grad():
-        for batch in tqdm(test_dataloader, desc="处理测试集"):
-            x_batch = batch.feature.to(device)  # [B, P, N, 3]
-            y_batch = batch.label.to(device)    # [B, Q, N, 3]
+        for split_name, dataloader in dataloaders:
+            embeddings_list = []
+            labels_list = []
+            inputs_list = []
 
-            # 提取时间编码
-            TE = x_batch[:, :, :, 1:]  # [B, P, N, 2]
+            for batch in tqdm(dataloader, desc=f"处理 {split_name} 集"):
+                x_batch = batch.feature.to(device)  # [B, P, N, 3]
+                y_batch = batch.label.to(device)    # [B, Q, N, 3]
 
-            # 提取 embedding (return_embedding=True)
-            embedding = model(x_batch, TE, return_embedding=True)
-            # embedding 形状: [B, Q, N, 256]
+                # 提取时间编码
+                TE = x_batch[:, :, :, 1:]  # [B, P, N, 2]
 
-            embeddings_list.append(embedding.cpu().numpy())
-            labels_list.append(y_batch[:, :, :, 0].cpu().numpy())  # 只保存流量值
-            inputs_list.append(x_batch.cpu().numpy())
+                # 提取 embedding (return_embedding=True)
+                embedding = model(x_batch, TE, return_embedding=True)
+                # embedding 形状: [B, Q, N, 256]
 
-    # 合并所有批次
-    embeddings = np.concatenate(embeddings_list, axis=0)  # [num_samples, Q, N, 256]
-    labels = np.concatenate(labels_list, axis=0)          # [num_samples, Q, N]
-    inputs = np.concatenate(inputs_list, axis=0)          # [num_samples, P, N, 3]
+                embeddings_list.append(embedding.cpu().numpy())
+                labels_list.append(y_batch[:, :, :, 0].cpu().numpy())  # 只保存流量值
+                inputs_list.append(x_batch.cpu().numpy())
+
+            # 合并当前分割的所有批次
+            all_embeddings[split_name] = np.concatenate(embeddings_list, axis=0)
+            all_labels[split_name] = np.concatenate(labels_list, axis=0)
+            all_inputs[split_name] = np.concatenate(inputs_list, axis=0)
+
+            print(f"  {split_name}: embeddings={all_embeddings[split_name].shape}, "
+                  f"labels={all_labels[split_name].shape}")
+
+    # 如果是单个分割，直接使用；如果是 all，合并所有数据
+    if split == 'all':
+        embeddings = np.concatenate([all_embeddings['train'],
+                                    all_embeddings['val'],
+                                    all_embeddings['test']], axis=0)
+        labels = np.concatenate([all_labels['train'],
+                                all_labels['val'],
+                                all_labels['test']], axis=0)
+        inputs = np.concatenate([all_inputs['train'],
+                                all_inputs['val'],
+                                all_inputs['test']], axis=0)
+    else:
+        embeddings = all_embeddings[split]
+        labels = all_labels[split]
+        inputs = all_inputs[split]
 
     print(f"\nEmbedding 形状: {embeddings.shape}")
     print(f"Labels 形状: {labels.shape}")
@@ -112,22 +159,47 @@ def extract_embeddings(config_path='config.yaml', save_dir='embeddings'):
 
     # 保存
     dataset_name = config['data']['dataset']
-    save_path = os.path.join(save_dir, f"{dataset_name}_embeddings.npz")
+    if save_path is None:
+        # 生成默认文件名，包含 split 信息
+        filename = f"{dataset_name}_{split}_embeddings.npz"
+        save_path = os.path.join(save_dir, filename)
 
-    np.savez_compressed(
-        save_path,
-        embeddings=embeddings,
-        labels=labels,
-        inputs=inputs,
-        config=config,
-        mean=scaler.mean_,
-        std=scaler.scale_,
-    )
+    # 确保保存目录存在
+    os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
+
+    # 保存数据，如果是 all，额外保存每个分割的信息
+    save_dict = {
+        'embeddings': embeddings,
+        'labels': labels,
+        'inputs': inputs,
+        'config': config,
+        'mean': scaler.mean_,
+        'std': scaler.scale_,
+        'split': split,
+    }
+
+    # 如果提取了所有数据，也保存分割信息（用于后续可能需要单独访问）
+    if split == 'all':
+        save_dict.update({
+            'train_size': all_embeddings['train'].shape[0],
+            'val_size': all_embeddings['val'].shape[0],
+            'test_size': all_embeddings['test'].shape[0],
+        })
+
+    np.savez_compressed(save_path, **save_dict)
+
+    # 计算文件大小
+    file_size_mb = os.path.getsize(save_path) / (1024 * 1024)
 
     print(f"\n✓ Embeddings 已保存到: {save_path}")
+    print(f"  文件大小: {file_size_mb:.2f} MB")
     print(f"  - embeddings: {embeddings.shape} (源模型的高层特征)")
     print(f"  - labels: {labels.shape} (真实流量值)")
     print(f"  - inputs: {inputs.shape} (原始输入)")
+    print(f"  - split: {split}")
+    if split == 'all':
+        print(f"  - 数据分布: train={save_dict['train_size']}, "
+              f"val={save_dict['val_size']}, test={save_dict['test_size']}")
     print(f"  - mean & std: 用于反归一化的统计量")
 
     return save_path
@@ -163,16 +235,53 @@ def load_embeddings(embedding_path):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='提取 MPGAT 模型的 embeddings')
-    parser.add_argument('--config', type=str, default='config.yaml', help='配置文件路径')
-    parser.add_argument('--save_dir', type=str, default='embeddings', help='保存目录')
+    parser = argparse.ArgumentParser(
+        description='提取 MPGAT 模型的 embeddings 用于迁移学习',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例用法:
+  # 提取全量数据集（默认）
+  python extract_embeddings.py --split all
+
+  # 只提取测试集
+  python extract_embeddings.py --split test
+
+  # 指定模型路径和保存路径
+  python extract_embeddings.py --checkpoint checkpoints/PEMS08/best_model.pth --save_path ./my_embeddings.npz
+
+  # 使用自定义配置文件
+  python extract_embeddings.py --config my_config.yaml --split all
+        """
+    )
+    parser.add_argument('--config', type=str, default='config.yaml',
+                       help='配置文件路径 (默认: config.yaml)')
+    parser.add_argument('--save_dir', type=str, default='embeddings',
+                       help='保存目录 (默认: embeddings/)')
+    parser.add_argument('--checkpoint', type=str, default=None,
+                       help='模型权重文件路径 (默认: checkpoints/{dataset}/best_model.pth)')
+    parser.add_argument('--split', type=str, default='all',
+                       choices=['train', 'val', 'test', 'all'],
+                       help='提取哪个数据集 (默认: all)')
+    parser.add_argument('--save_path', type=str, default=None,
+                       help='完整的保存文件路径，如果指定则忽略 --save_dir')
 
     args = parser.parse_args()
 
     # 提取 embeddings
-    save_path = extract_embeddings(args.config, args.save_dir)
+    print("="*60)
+    print("MPGAT Embedding 提取工具")
+    print("="*60)
+    save_path = extract_embeddings(
+        config_path=args.config,
+        save_dir=args.save_dir,
+        checkpoint_path=args.checkpoint,
+        split=args.split,
+        save_path=args.save_path
+    )
 
     # 验证加载
-    print("\n验证加载...")
+    print("\n" + "="*60)
+    print("验证加载...")
+    print("="*60)
     data = load_embeddings(save_path)
     print("\n✓ 提取完成！可用于迁移学习。")

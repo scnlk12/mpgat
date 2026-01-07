@@ -19,7 +19,7 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   # 批次大小（减小batch_size提高更新频率，增强稳定性）
-  batch_size: 64
+  batch_size: 96
 
 # ==================== 模型配置 ====================
 model:
@@ -54,7 +54,7 @@ training:
   patience: 250         # 原50 → 80
   # 初始学习率
   # 优化: 降低学习率以获得更稳定的训练
-  learning_rate: 0.001
+  learning_rate: 0.003
   # 梯度裁剪阈值
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
@@ -69,7 +69,7 @@ training:
   # exponential: 从1.0指数增长到1.5
 
   # 学习率衰减配置 (使用CosineAnnealing提供平滑衰减)
-  use_cosine_annealing: false
+  use_cosine_annealing: true
   lr_decay: false
   lr_decay_rate: 0.3
   lr_decay_step: '5,20,40,70'
@@ -84,7 +84,7 @@ training:
 
   # 学习率预热 (前N个epoch逐步提升学习率)
   # 优化: 模型更复杂,延长warmup期
-  warmup_epochs: 15     # 原10 → 15
+  warmup_epochs: 20     # 原10 → 15
 
 # ==================== 日志与保存 ====================
 logging:
@@ -101,7 +101,9 @@ saving:
   # 是否保存最佳模型
   save_best: true
   # Embedding 保存配置
-  embedding_dir: './embeddings'
+  # embedding_dir: './embeddings'                 # 默认保存到当前目录
+  # embedding_dir: '/path/to/data_disk/embeddings'  # 自定义路径（推荐配置到数据盘）
+  embedding_dir: '/root/autodl-tmp/mpgat/embedding'
   # Embedding 保存格式: 'npz' (推荐), 'pt', 'both'
   # npz: 压缩numpy格式，跨平台，文件小，适合迁移学习
   # pt: PyTorch格式，保留tensor信息，适合纯PyTorch流程
@@ -113,7 +115,7 @@ saving:
 # ==================== 其他配置 ====================
 misc:
   # 随机种子
-  seed: 42
+  seed: 26
   # 时间片长度（分钟）
   time_slot: 5
   # 是否使用混合精度训练（节省显存）

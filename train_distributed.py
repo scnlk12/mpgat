@@ -567,10 +567,28 @@ def main_worker(rank, world_size, config):
             embedding_dir = config.saving.get('embedding_dir', './embeddings')
             os.makedirs(embedding_dir, exist_ok=True)
 
-            # 在测试集上提取 embeddings
+            # 在整个数据集上提取 embeddings（训练集+验证集+测试集）
+            print("Extracting from train set...")
+            y_train, pred_train, embeddings_train = predict(
+                gman_model, train_loader, rank, data_scaler, return_embeddings=True
+            )
+
+            print("Extracting from validation set...")
+            y_val, pred_val, embeddings_val = predict(
+                gman_model, val_loader, rank, data_scaler, return_embeddings=True
+            )
+
+            print("Extracting from test set...")
             y_test, pred_test, embeddings_test = predict(
                 gman_model, test_loader, rank, data_scaler, return_embeddings=True
             )
+
+            # 合并所有数据集
+            embeddings_all = np.vstack([embeddings_train, embeddings_val, embeddings_test])
+            labels_all = np.vstack([y_train, y_val, y_test])
+            predictions_all = np.vstack([pred_train, pred_val, pred_test])
+
+            print(f"Total samples: {len(embeddings_all)} (train: {len(embeddings_train)}, val: {len(embeddings_val)}, test: {len(embeddings_test)})")
 
             # 获取保存格式
             embedding_format = config.saving.get('embedding_format', 'npz')
@@ -580,9 +598,9 @@ def main_worker(rank, world_size, config):
                 npz_path = os.path.join(embedding_dir, f"{dataset_name}_embeddings.npz")
                 np.savez_compressed(
                     npz_path,
-                    embeddings=embeddings_test,  # [N, Q, num_nodes, 256]
-                    labels=y_test,               # [N, Q, num_nodes]
-                    predictions=pred_test,       # [N, Q, num_nodes]
+                    embeddings=embeddings_all,  # [N, Q, num_nodes, 256]
+                    labels=labels_all,          # [N, Q, num_nodes]
+                    predictions=predictions_all, # [N, Q, num_nodes]
                     mean=data_scaler.mean,
                     std=data_scaler.std,
                     dataset=dataset_name,
@@ -596,9 +614,9 @@ def main_worker(rank, world_size, config):
             if embedding_format in ['pt', 'both']:
                 pt_path = os.path.join(embedding_dir, f"{dataset_name}_embeddings.pt")
                 torch.save({
-                    'embeddings': torch.from_numpy(embeddings_test),
-                    'labels': torch.from_numpy(y_test),
-                    'predictions': torch.from_numpy(pred_test),
+                    'embeddings': torch.from_numpy(embeddings_all),
+                    'labels': torch.from_numpy(labels_all),
+                    'predictions': torch.from_numpy(predictions_all),
                     'mean': data_scaler.mean,
                     'std': data_scaler.std,
                     'dataset': dataset_name,
@@ -607,18 +625,18 @@ def main_worker(rank, world_size, config):
                         'Q': config.model.Q,
                         'num_nodes': num_nodes,
                         'embed_dim': config.model.skip_dim,
-                    }
+                    },
                 }, pt_path)
                 pt_size = os.path.getsize(pt_path) / (1024**2)  # MB
                 print(f"✓ PT saved to: {pt_path} ({pt_size:.2f} MB)")
                 if log:
                     utils.log_string(log, f"PT saved: {pt_path} ({pt_size:.2f} MB)")
 
-            print(f"  - embeddings: {embeddings_test.shape}")
-            print(f"  - labels: {y_test.shape}")
-            print(f"  - predictions: {pred_test.shape}")
+            print(f"  - embeddings shape: {embeddings_all.shape}")
+            print(f"  - labels shape: {labels_all.shape}")
+            print(f"  - predictions shape: {predictions_all.shape}")
             if log:
-                utils.log_string(log, f"  Shape: embeddings={embeddings_test.shape}, labels={y_test.shape}")
+                utils.log_string(log, f"  Shape: embeddings={embeddings_all.shape}, labels={labels_all.shape}")
             print("="*60 + "\n")
 
     # 测试
