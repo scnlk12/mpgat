@@ -1,0 +1,11 @@
+usage: test.py [-h] [--time_slot TIME_SLOT] [--P P] [--Q Q] [--L L] [--T T]
+               [--embed_dim EMBED_DIM] [--K K] [--input_dim INPUT_DIM] [--d D]
+               [--train_ratio TRAIN_RATIO] [--val_ratio VAL_RATIO]
+               [--test_ratio TEST_RATIO] [--batch_size BATCH_SIZE]
+               [--max_epoch MAX_EPOCH] [--patience PATIENCE]
+               [--learning_rate LEARNING_RATE] [--decay_epoch DECAY_EPOCH]
+               [--traffic_file TRAFFIC_FILE] [--SE_file SE_FILE]
+               [--model_file MODEL_FILE] [--log_file LOG_FILE]
+               [--loss_func LOSS_FUNC] [--lr_decay LR_DECAY]
+               [--lr_decay_rate LR_DECAY_RATE] [--lr_decay_step LR_DECAY_STEP]
+test.py: error: unrecognized arguments: --gpu_ids 1

@@ -1,0 +1,98 @@
+✓ 配置验证通过
+Available GPUs: 3
+Using GPUs: [0]
+Using 1 GPU(s) for training
+Config:
+data:
+  batch_size: 32
+  test_ratio: 0.2
+  traffic_file: data/PEMS08/PEMS08.npz
+  train_ratio: 0.6
+  val_ratio: 0.2
+gpu:
+  device_ids:
+  - 0
+  distributed: true
+  main_device: 0
+logging:
+  log_dir: ./logs
+  tensorboard_dir: ./runLog/mpgat
+  verbose: 1
+misc:
+  seed: 42
+  time_slot: 5
+  use_amp: false
+model:
+  K: 8
+  L: 3
+  P: 12
+  Q: 12
+  T: 288
+  d: 32
+  embed_dim: 64
+  input_dim: 3
+  lape_dim: 64
+  skip_dim: 256
+saving:
+  model_dir: ./saved_models
+  save_best: true
+training:
+  clip_grad: 5
+  dropout: 0.3
+  gamma: 0.9
+  learning_rate: 0.002
+  loss_func: masked_mae
+  lr_decay: false
+  lr_decay_rate: 0.3
+  lr_decay_step: 5,20,40,70
+  max_epoch: 1500
+  patience: 50
+  step_size: 100
+  temporal_weight_scheme: progressive
+  use_cosine_annealing: true
+  use_temporal_weighting: false
+  warmup_epochs: 50
+  weight_decay: 0.0001
+
+{'gpu': {'device_ids': [0], 'distributed': True, 'main_device': 0}, 'data': {'traffic_file': 'data/PEMS08/PEMS08.npz', 'train_ratio': 0.6, 'val_ratio': 0.2, 'test_ratio': 0.2, 'batch_size': 32}, 'model': {'input_dim': 3, 'P': 12, 'Q': 12, 'T': 288, 'L': 3, 'K': 8, 'd': 32, 'embed_dim': 64, 'skip_dim': 256, 'lape_dim': 64}, 'training': {'max_epoch': 1500, 'patience': 50, 'learning_rate': 0.002, 'clip_grad': 5, 'loss_func': 'masked_mae', 'use_temporal_weighting': False, 'temporal_weight_scheme': 'progressive', 'use_cosine_annealing': True, 'lr_decay': False, 'lr_decay_rate': 0.3, 'lr_decay_step': '5,20,40,70', 'step_size': 100, 'gamma': 0.9, 'weight_decay': 0.0001, 'dropout': 0.3, 'warmup_epochs': 50}, 'logging': {'log_dir': './logs', 'tensorboard_dir': './runLog/mpgat', 'verbose': 1}, 'saving': {'model_dir': './saved_models', 'save_best': True}, 'misc': {'seed': 42, 'time_slot': 5, 'use_amp': False}}
+Loading data...
+train	x: (10714, 12, 170, 3), y: (10714, 12, 170, 3)
+eval	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+test	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+Data loaded!
+Using dataset: PEMS08
+Graph structure file: data/PEMS08/PEMS08.csv
+Number of nodes: 170
+Graph loaded: 170 nodes, 274 edges
+--------- Test ---------
+--------- Test ---------
+All Steps RMSE = 24.89802, MAE = 15.52697, MAPE = 97.96923
+Step  1 RMSE = 21.52559, MAE = 13.91639, MAPE = 92.51858
+Step  2 RMSE = 22.50140, MAE = 14.37589, MAPE = 96.91894
+Step  3 RMSE = 23.32315, MAE = 14.76990, MAPE = 98.67833
+Step  4 RMSE = 23.96807, MAE = 15.03262, MAPE = 100.72536
+Step  5 RMSE = 24.50803, MAE = 15.27972, MAPE = 98.75070
+Step  6 RMSE = 24.98243, MAE = 15.52841, MAPE = 98.54613
+Step  7 RMSE = 25.36617, MAE = 15.73271, MAPE = 97.76903
+Step  8 RMSE = 25.68922, MAE = 15.89519, MAPE = 96.73967
+Step  9 RMSE = 25.99743, MAE = 16.07869, MAPE = 94.87844
+Step 10 RMSE = 26.28717, MAE = 16.24896, MAPE = 95.85083
+Step 11 RMSE = 26.65737, MAE = 16.50329, MAPE = 99.50645
+Step 12 RMSE = 27.29821, MAE = 16.96191, MAPE = 104.74837
+
+All Steps RMSE = 24.89802, MAE = 15.52697, MAPE = 97.96923
+Step  1 RMSE = 21.52559, MAE = 13.91639, MAPE = 92.51858
+Step  2 RMSE = 22.50140, MAE = 14.37589, MAPE = 96.91894
+Step  3 RMSE = 23.32315, MAE = 14.76990, MAPE = 98.67833
+Step  4 RMSE = 23.96807, MAE = 15.03262, MAPE = 100.72536
+Step  5 RMSE = 24.50803, MAE = 15.27972, MAPE = 98.75070
+Step  6 RMSE = 24.98243, MAE = 15.52841, MAPE = 98.54613
+Step  7 RMSE = 25.36617, MAE = 15.73271, MAPE = 97.76903
+Step  8 RMSE = 25.68922, MAE = 15.89519, MAPE = 96.73967
+Step  9 RMSE = 25.99743, MAE = 16.07869, MAPE = 94.87844
+Step 10 RMSE = 26.28717, MAE = 16.24896, MAPE = 95.85083
+Step 11 RMSE = 26.65737, MAE = 16.50329, MAPE = 99.50645
+Step 12 RMSE = 27.29821, MAE = 16.96191, MAPE = 104.74837
+
+Inference time: 12.88 s
+Inference time: 12.88 s

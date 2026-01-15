@@ -1,0 +1,296 @@
+✓ 配置验证通过
+Available GPUs: 3
+Using GPUs: [0]
+Using 1 GPU(s) for training
+Config:
+data:
+  batch_size: 32
+  test_ratio: 0.2
+  traffic_file: data/PEMS08/PEMS08.npz
+  train_ratio: 0.6
+  val_ratio: 0.2
+gpu:
+  device_ids:
+  - 0
+  distributed: true
+  main_device: 0
+logging:
+  log_dir: ./logs
+  tensorboard_dir: ./runLog/mpgat
+  verbose: 1
+misc:
+  seed: 42
+  time_slot: 5
+  use_amp: false
+model:
+  K: 8
+  L: 3
+  P: 12
+  Q: 12
+  T: 288
+  d: 32
+  embed_dim: 64
+  input_dim: 3
+  lape_dim: 64
+  skip_dim: 256
+saving:
+  model_dir: ./saved_models
+  save_best: true
+training:
+  clip_grad: 5
+  dropout: 0.3
+  gamma: 0.9
+  learning_rate: 0.002
+  loss_func: huber
+  lr_decay: false
+  lr_decay_rate: 0.3
+  lr_decay_step: 5,20,40,70
+  max_epoch: 1500
+  patience: 50
+  step_size: 100
+  temporal_weight_scheme: progressive
+  use_cosine_annealing: true
+  use_temporal_weighting: false
+  warmup_epochs: 50
+  weight_decay: 0.0001
+
+{'gpu': {'device_ids': [0], 'distributed': True, 'main_device': 0}, 'data': {'traffic_file': 'data/PEMS08/PEMS08.npz', 'train_ratio': 0.6, 'val_ratio': 0.2, 'test_ratio': 0.2, 'batch_size': 32}, 'model': {'input_dim': 3, 'P': 12, 'Q': 12, 'T': 288, 'L': 3, 'K': 8, 'd': 32, 'embed_dim': 64, 'skip_dim': 256, 'lape_dim': 64}, 'training': {'max_epoch': 1500, 'patience': 50, 'learning_rate': 0.002, 'clip_grad': 5, 'loss_func': 'huber', 'use_temporal_weighting': False, 'temporal_weight_scheme': 'progressive', 'use_cosine_annealing': True, 'lr_decay': False, 'lr_decay_rate': 0.3, 'lr_decay_step': '5,20,40,70', 'step_size': 100, 'gamma': 0.9, 'weight_decay': 0.0001, 'dropout': 0.3, 'warmup_epochs': 50}, 'logging': {'log_dir': './logs', 'tensorboard_dir': './runLog/mpgat', 'verbose': 1}, 'saving': {'model_dir': './saved_models', 'save_best': True}, 'misc': {'seed': 42, 'time_slot': 5, 'use_amp': False}}
+Loading data...
+train	x: (10714, 12, 170, 3), y: (10714, 12, 170, 3)
+eval	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+test	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+Data loaded!
+Using dataset: PEMS08
+Graph structure file: data/PEMS08/PEMS08.csv
+Number of nodes: 170
+Graph loaded: 170 nodes, 274 edges
+*****************Model Parameter*****************
+node_embeddings torch.Size([170, 64]) True
+STE_emb.adaptive_embedding torch.Size([12, 170, 256]) True
+STE_emb.x_forward.0.weight torch.Size([256, 3]) True
+STE_emb.x_forward.0.bias torch.Size([256]) True
+STE_emb.x_forward.2.weight torch.Size([1024, 256]) True
+STE_emb.x_forward.2.bias torch.Size([1024]) True
+STE_emb.x_forward.4.weight torch.Size([256, 1024]) True
+STE_emb.x_forward.4.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.alpha torch.Size([]) True
+ST_Att.0.spatialAtt.beta torch.Size([]) True
+ST_Att.0.spatialAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.0.spatialAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.0.spatialAtt.FC_K.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.0.spatialAtt.FC_V.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.norm1.weight torch.Size([256]) True
+ST_Att.0.spatialAtt.norm1.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.norm2.weight torch.Size([256]) True
+ST_Att.0.spatialAtt.norm2.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.0.spatialAtt.out_proj.bias torch.Size([256]) True
+ST_Att.0.spatialAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.0.spatialAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.0.spatialAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.0.spatialAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.0.temporalAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.0.temporalAtt.FC_K.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.0.temporalAtt.FC_V.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_Q4HT.weight torch.Size([256, 2]) True
+ST_Att.0.temporalAtt.FC_Q4HT.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_K4HT.weight torch.Size([256, 2]) True
+ST_Att.0.temporalAtt.FC_K4HT.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.FC_V4HT.weight torch.Size([256, 2]) True
+ST_Att.0.temporalAtt.FC_V4HT.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.conv1Ds_aware_temporal_context.0.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.0.temporalAtt.conv1Ds_aware_temporal_context.0.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.conv1Ds_aware_temporal_context.1.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.0.temporalAtt.conv1Ds_aware_temporal_context.1.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.norm1.weight torch.Size([256]) True
+ST_Att.0.temporalAtt.norm1.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.norm2.weight torch.Size([256]) True
+ST_Att.0.temporalAtt.norm2.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.0.temporalAtt.out_proj.bias torch.Size([256]) True
+ST_Att.0.temporalAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.0.temporalAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.0.temporalAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.0.temporalAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.0.causal_inception.conv.weight torch.Size([256, 256, 1]) True
+ST_Att.0.causal_inception.conv.bias torch.Size([256]) True
+ST_Att.0.causal_inception.branches.0.0.weight torch.Size([256, 256, 2]) True
+ST_Att.0.causal_inception.branches.0.0.bias torch.Size([256]) True
+ST_Att.0.causal_inception.branches.1.0.weight torch.Size([256, 256, 3]) True
+ST_Att.0.causal_inception.branches.1.0.bias torch.Size([256]) True
+ST_Att.0.causal_inception.branches.2.0.weight torch.Size([256, 256, 6]) True
+ST_Att.0.causal_inception.branches.2.0.bias torch.Size([256]) True
+ST_Att.0.causal_inception.branches.3.0.weight torch.Size([256, 256, 7]) True
+ST_Att.0.causal_inception.branches.3.0.bias torch.Size([256]) True
+ST_Att.0.causal_inception.merge.weight torch.Size([1, 5, 1, 1]) True
+ST_Att.0.causal_inception.projection.weight torch.Size([256, 256]) True
+ST_Att.0.causal_inception.projection.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT1.linear.0.weight torch.Size([256, 256]) True
+ST_Att.0.gated_fusion.FC_HT1.linear.0.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT1.ln.weight torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT1.ln.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT2.linear.0.weight torch.Size([256, 256]) True
+ST_Att.0.gated_fusion.FC_HT2.linear.0.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT2.ln.weight torch.Size([256]) True
+ST_Att.0.gated_fusion.FC_HT2.ln.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.gate.0.weight torch.Size([256, 512]) True
+ST_Att.0.gated_fusion.gate.0.bias torch.Size([256]) True
+ST_Att.0.gated_fusion.gate.2.weight torch.Size([256, 256]) True
+ST_Att.0.gated_fusion.gate.2.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.alpha torch.Size([]) True
+ST_Att.1.spatialAtt.beta torch.Size([]) True
+ST_Att.1.spatialAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.1.spatialAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.1.spatialAtt.FC_K.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.1.spatialAtt.FC_V.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.norm1.weight torch.Size([256]) True
+ST_Att.1.spatialAtt.norm1.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.norm2.weight torch.Size([256]) True
+ST_Att.1.spatialAtt.norm2.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.1.spatialAtt.out_proj.bias torch.Size([256]) True
+ST_Att.1.spatialAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.1.spatialAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.1.spatialAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.1.spatialAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.1.temporalAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.1.temporalAtt.FC_K.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.1.temporalAtt.FC_V.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_Q4HT.weight torch.Size([256, 2]) True
+ST_Att.1.temporalAtt.FC_Q4HT.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_K4HT.weight torch.Size([256, 2]) True
+ST_Att.1.temporalAtt.FC_K4HT.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.FC_V4HT.weight torch.Size([256, 2]) True
+ST_Att.1.temporalAtt.FC_V4HT.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.conv1Ds_aware_temporal_context.0.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.1.temporalAtt.conv1Ds_aware_temporal_context.0.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.conv1Ds_aware_temporal_context.1.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.1.temporalAtt.conv1Ds_aware_temporal_context.1.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.norm1.weight torch.Size([256]) True
+ST_Att.1.temporalAtt.norm1.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.norm2.weight torch.Size([256]) True
+ST_Att.1.temporalAtt.norm2.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.1.temporalAtt.out_proj.bias torch.Size([256]) True
+ST_Att.1.temporalAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.1.temporalAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.1.temporalAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.1.temporalAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.1.causal_inception.conv.weight torch.Size([256, 256, 1]) True
+ST_Att.1.causal_inception.conv.bias torch.Size([256]) True
+ST_Att.1.causal_inception.branches.0.0.weight torch.Size([256, 256, 2]) True
+ST_Att.1.causal_inception.branches.0.0.bias torch.Size([256]) True
+ST_Att.1.causal_inception.branches.1.0.weight torch.Size([256, 256, 3]) True
+ST_Att.1.causal_inception.branches.1.0.bias torch.Size([256]) True
+ST_Att.1.causal_inception.branches.2.0.weight torch.Size([256, 256, 6]) True
+ST_Att.1.causal_inception.branches.2.0.bias torch.Size([256]) True
+ST_Att.1.causal_inception.branches.3.0.weight torch.Size([256, 256, 7]) True
+ST_Att.1.causal_inception.branches.3.0.bias torch.Size([256]) True
+ST_Att.1.causal_inception.merge.weight torch.Size([1, 5, 1, 1]) True
+ST_Att.1.causal_inception.projection.weight torch.Size([256, 256]) True
+ST_Att.1.causal_inception.projection.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT1.linear.0.weight torch.Size([256, 256]) True
+ST_Att.1.gated_fusion.FC_HT1.linear.0.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT1.ln.weight torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT1.ln.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT2.linear.0.weight torch.Size([256, 256]) True
+ST_Att.1.gated_fusion.FC_HT2.linear.0.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT2.ln.weight torch.Size([256]) True
+ST_Att.1.gated_fusion.FC_HT2.ln.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.gate.0.weight torch.Size([256, 512]) True
+ST_Att.1.gated_fusion.gate.0.bias torch.Size([256]) True
+ST_Att.1.gated_fusion.gate.2.weight torch.Size([256, 256]) True
+ST_Att.1.gated_fusion.gate.2.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.alpha torch.Size([]) True
+ST_Att.2.spatialAtt.beta torch.Size([]) True
+ST_Att.2.spatialAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.2.spatialAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.2.spatialAtt.FC_K.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.2.spatialAtt.FC_V.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.norm1.weight torch.Size([256]) True
+ST_Att.2.spatialAtt.norm1.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.norm2.weight torch.Size([256]) True
+ST_Att.2.spatialAtt.norm2.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.2.spatialAtt.out_proj.bias torch.Size([256]) True
+ST_Att.2.spatialAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.2.spatialAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.2.spatialAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.2.spatialAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_Q.weight torch.Size([256, 256]) True
+ST_Att.2.temporalAtt.FC_Q.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_K.weight torch.Size([256, 256]) True
+ST_Att.2.temporalAtt.FC_K.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_V.weight torch.Size([256, 256]) True
+ST_Att.2.temporalAtt.FC_V.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_Q4HT.weight torch.Size([256, 2]) True
+ST_Att.2.temporalAtt.FC_Q4HT.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_K4HT.weight torch.Size([256, 2]) True
+ST_Att.2.temporalAtt.FC_K4HT.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.FC_V4HT.weight torch.Size([256, 2]) True
+ST_Att.2.temporalAtt.FC_V4HT.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.conv1Ds_aware_temporal_context.0.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.2.temporalAtt.conv1Ds_aware_temporal_context.0.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.conv1Ds_aware_temporal_context.1.weight torch.Size([256, 256, 1, 3]) True
+ST_Att.2.temporalAtt.conv1Ds_aware_temporal_context.1.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.norm1.weight torch.Size([256]) True
+ST_Att.2.temporalAtt.norm1.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.norm2.weight torch.Size([256]) True
+ST_Att.2.temporalAtt.norm2.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.out_proj.weight torch.Size([256, 256]) True
+ST_Att.2.temporalAtt.out_proj.bias torch.Size([256]) True
+ST_Att.2.temporalAtt.two_layer_feed_forward.0.weight torch.Size([1024, 256]) True
+ST_Att.2.temporalAtt.two_layer_feed_forward.0.bias torch.Size([1024]) True
+ST_Att.2.temporalAtt.two_layer_feed_forward.2.weight torch.Size([256, 1024]) True
+ST_Att.2.temporalAtt.two_layer_feed_forward.2.bias torch.Size([256]) True
+ST_Att.2.causal_inception.conv.weight torch.Size([256, 256, 1]) True
+ST_Att.2.causal_inception.conv.bias torch.Size([256]) True
+ST_Att.2.causal_inception.branches.0.0.weight torch.Size([256, 256, 2]) True
+ST_Att.2.causal_inception.branches.0.0.bias torch.Size([256]) True
+ST_Att.2.causal_inception.branches.1.0.weight torch.Size([256, 256, 3]) True
+ST_Att.2.causal_inception.branches.1.0.bias torch.Size([256]) True
+ST_Att.2.causal_inception.branches.2.0.weight torch.Size([256, 256, 6]) True
+ST_Att.2.causal_inception.branches.2.0.bias torch.Size([256]) True
+ST_Att.2.causal_inception.branches.3.0.weight torch.Size([256, 256, 7]) True
+ST_Att.2.causal_inception.branches.3.0.bias torch.Size([256]) True
+ST_Att.2.causal_inception.merge.weight torch.Size([1, 5, 1, 1]) True
+ST_Att.2.causal_inception.projection.weight torch.Size([256, 256]) True
+ST_Att.2.causal_inception.projection.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT1.linear.0.weight torch.Size([256, 256]) True
+ST_Att.2.gated_fusion.FC_HT1.linear.0.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT1.ln.weight torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT1.ln.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT2.linear.0.weight torch.Size([256, 256]) True
+ST_Att.2.gated_fusion.FC_HT2.linear.0.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT2.ln.weight torch.Size([256]) True
+ST_Att.2.gated_fusion.FC_HT2.ln.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.gate.0.weight torch.Size([256, 512]) True
+ST_Att.2.gated_fusion.gate.0.bias torch.Size([256]) True
+ST_Att.2.gated_fusion.gate.2.weight torch.Size([256, 256]) True
+ST_Att.2.gated_fusion.gate.2.bias torch.Size([256]) True
+skip_convs.0.weight torch.Size([256, 256, 1, 1]) True
+skip_convs.0.bias torch.Size([256]) True
+skip_convs.1.weight torch.Size([256, 256, 1, 1]) True
+skip_convs.1.bias torch.Size([256]) True
+skip_convs.2.weight torch.Size([256, 256, 1, 1]) True
+skip_convs.2.bias torch.Size([256]) True
+end_conv1.weight torch.Size([12, 12, 1, 1]) True
+end_conv1.bias torch.Size([12]) True
+end_conv2.weight torch.Size([1, 256, 1, 1]) True
+end_conv2.bias torch.Size([1]) True
+Total params num: 12110130
+*****************Finish Parameter****************
+Using standard loss: huber
+Training:   0%|          | 0/335 [00:00<?, ?it/s]Training:   0%|          | 1/335 [00:00<05:15,  1.06it/s]Training:   1%|          | 2/335 [00:01<03:15,  1.71it/s]Training:   1%|          | 3/335 [00:01<02:36,  2.12it/s]Training:   1%|          | 4/335 [00:01<02:18,  2.39it/s]Training:   1%|▏         | 5/335 [00:02<02:08,  2.57it/s]Training:   2%|▏         | 6/335 [00:02<02:01,  2.70it/s]Training:   2%|▏         | 7/335 [00:02<01:57,  2.78it/s]Training:   2%|▏         | 8/335 [00:03<01:54,  2.84it/s]Training:   3%|▎         | 9/335 [00:03<01:52,  2.89it/s]Training:   3%|▎         | 10/335 [00:03<01:51,  2.91it/s]Training:   3%|▎         | 11/335 [00:04<01:50,  2.93it/s]Training:   4%|▎         | 12/335 [00:04<01:49,  2.95it/s]Training:   4%|▍         | 13/335 [00:04<01:48,  2.96it/s]Training:   4%|▍         | 14/335 [00:05<01:48,  2.96it/s]Training:   4%|▍         | 15/335 [00:05<01:47,  2.97it/s]Training:   5%|▍         | 16/335 [00:05<01:47,  2.97it/s]Training:   5%|▌         | 17/335 [00:06<01:46,  2.97it/s]Training:   5%|▌         | 18/335 [00:06<01:46,  2.97it/s]Training:   6%|▌         | 19/335 [00:06<01:46,  2.98it/s]Training:   6%|▌         | 20/335 [00:07<01:45,  2.98it/s]Training:   6%|▋         | 21/335 [00:07<01:45,  2.98it/s]Training:   7%|▋         | 22/335 [00:07<01:45,  2.98it/s]Training:   7%|▋         | 23/335 [00:08<01:44,  2.98it/s]Training:   7%|▋         | 24/335 [00:08<01:44,  2.98it/s]Training:   7%|▋         | 25/335 [00:09<01:44,  2.98it/s]Training:   8%|▊         | 26/335 [00:09<01:43,  2.98it/s]Training:   8%|▊         | 27/335 [00:09<01:43,  2.98it/s]Training:   8%|▊         | 28/335 [00:10<01:43,  2.98it/s]Training:   9%|▊         | 29/335 [00:10<01:42,  2.98it/s]Training:   9%|▉         | 30/335 [00:10<01:42,  2.98it/s]Training:   9%|▉         | 31/335 [00:11<01:42,  2.98it/s]Training:  10%|▉         | 32/335 [00:11<01:41,  2.98it/s]Training:  10%|▉         | 33/335 [00:11<01:41,  2.98it/s]Training:  10%|█         | 34/335 [00:12<01:41,  2.98it/s]Training:  10%|█         | 35/335 [00:12<01:40,  2.98it/s]Training:  11%|█         | 36/335 [00:12<01:40,  2.98it/s]Training:  11%|█         | 37/335 [00:13<01:40,  2.98it/s]Training:  11%|█▏        | 38/335 [00:13<01:39,  2.98it/s]Training:  12%|█▏        | 39/335 [00:13<01:39,  2.98it/s]Training:  12%|█▏        | 40/335 [00:14<01:39,  2.98it/s]Training:  12%|█▏        | 41/335 [00:14<01:38,  2.98it/s]Training:  13%|█▎        | 42/335 [00:14<01:38,  2.98it/s]Training:  13%|█▎        | 43/335 [00:15<01:38,  2.98it/s]Training:  13%|█▎        | 44/335 [00:15<01:37,  2.98it/s]Training:  13%|█▎        | 45/335 [00:15<01:37,  2.98it/s]Training:  14%|█▎        | 46/335 [00:16<01:37,  2.98it/s]Training:  14%|█▍        | 47/335 [00:16<01:36,  2.98it/s]Training:  14%|█▍        | 48/335 [00:16<01:36,  2.98it/s]Training:  15%|█▍        | 49/335 [00:17<01:36,  2.98it/s]Training:  15%|█▍        | 50/335 [00:17<01:35,  2.98it/s]Training:  15%|█▌        | 51/335 [00:17<01:35,  2.98it/s]Training:  16%|█▌        | 52/335 [00:18<01:35,  2.98it/s]Training:  16%|█▌        | 53/335 [00:18<01:34,  2.98it/s]Training:  16%|█▌        | 54/335 [00:18<01:34,  2.98it/s]Training:  16%|█▋        | 55/335 [00:19<01:34,  2.98it/s]Training:  17%|█▋        | 56/335 [00:19<01:33,  2.98it/s]Training:  17%|█▋        | 57/335 [00:19<01:33,  2.98it/s]Training:  17%|█▋        | 58/335 [00:20<01:33,  2.98it/s]Training:  18%|█▊        | 59/335 [00:20<01:32,  2.98it/s]Training:  18%|█▊        | 60/335 [00:20<01:32,  2.98it/s]Training:  18%|█▊        | 61/335 [00:21<01:32,  2.98it/s]Training:  19%|█▊        | 62/335 [00:21<01:31,  2.98it/s]Training:  19%|█▉        | 63/335 [00:21<01:31,  2.98it/s]Training:  19%|█▉        | 64/335 [00:22<01:31,  2.98it/s]Training:  19%|█▉        | 65/335 [00:22<01:30,  2.98it/s]Training:  20%|█▉        | 66/335 [00:22<01:30,  2.98it/s]Training:  20%|██        | 67/335 [00:23<01:30,  2.97it/s]Training:  20%|██        | 68/335 [00:23<01:29,  2.97it/s]Training:  21%|██        | 69/335 [00:23<01:29,  2.97it/s]Training:  21%|██        | 70/335 [00:24<01:29,  2.98it/s]Training:  21%|██        | 71/335 [00:24<01:28,  2.98it/s]Training:  21%|██▏       | 72/335 [00:24<01:28,  2.98it/s]Training:  22%|██▏       | 73/335 [00:25<01:28,  2.98it/s]Training:  22%|██▏       | 74/335 [00:25<01:27,  2.98it/s]Training:  22%|██▏       | 75/335 [00:25<01:27,  2.98it/s]Training:  23%|██▎       | 76/335 [00:26<01:27,  2.97it/s]Training:  23%|██▎       | 77/335 [00:26<01:26,  2.97it/s]Training:  23%|██▎       | 78/335 [00:26<01:26,  2.97it/s]Training:  24%|██▎       | 79/335 [00:27<01:26,  2.97it/s]Training:  24%|██▍       | 80/335 [00:27<01:25,  2.97it/s]Training:  24%|██▍       | 81/335 [00:27<01:25,  2.97it/s]Training:  24%|██▍       | 82/335 [00:28<01:25,  2.97it/s]Training:  25%|██▍       | 83/335 [00:28<01:24,  2.97it/s]Training:  25%|██▌       | 84/335 [00:28<01:24,  2.97it/s]Training:  25%|██▌       | 85/335 [00:29<01:24,  2.97it/s]Training:  26%|██▌       | 86/335 [00:29<01:23,  2.97it/s]

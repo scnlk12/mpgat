@@ -84,18 +84,31 @@ def train(
     verbose = config.logging.verbose
     use_amp = config.misc.get('use_amp', False)
 
+    # 【新增】定义课程学习的切换点
+    cl_milestones = [40, 70]
+
     for epoch in range(max_epochs):
         # 分布式训练时需要设置epoch
         if hasattr(trainset_loader.sampler, 'set_epoch'):
             trainset_loader.sampler.set_epoch(epoch)
+        
+        # 【新增】检查是否到达课程切换点，如果是，重置早停逻辑
+        if epoch in cl_milestones:
+            if rank == 0:
+                print(f"\n[Curriculum Info] Epoch {epoch}: Difficulty Level Increased! Resetting Early Stopping...")
+                if log is not None:
+                    utils.log_string(log, f"[Curriculum Info] Epoch {epoch}: Resetting Early Stopping...")
+            wait = 0
+            min_val_loss = np.inf
+            # 可选：如果在切换难度时验证损失剧增，这里重置为无穷大可以让模型重新寻找最优解
 
         train_loss = train_one_epoch(
             model, trainset_loader, optimizer, criterion,
-            clip_grad, use_amp, amp_scaler, rank, data_scaler
+            clip_grad, use_amp, amp_scaler, rank, data_scaler, epoch=epoch
         )
         train_loss_list.append(train_loss)
 
-        val_loss = eval_model(model, valset_loader, criterion, rank, data_scaler)
+        val_loss = eval_model(model, valset_loader, criterion, rank, data_scaler, epoch=epoch)
         val_loss_list.append(val_loss)
 
         # 学习率调度 - 适配不同类型的scheduler
@@ -179,10 +192,20 @@ def train(
 
 
 def train_one_epoch(model, trainset_loader, optimizer, criterion,
-                    clip_grad, use_amp, amp_scaler, rank, data_scaler):
+                    clip_grad, use_amp, amp_scaler, rank, data_scaler, epoch): # 1. 新增 epoch 参数
     """训练一个epoch"""
     model.train()
     batch_loss_list = []
+
+    # ==========================================
+    # 2. 定义课程学习策略 (Curriculum Learning)
+    # ==========================================
+    if epoch < 40:
+        pred_steps = 3   # 前 20 个 epoch，只学前 15 分钟 (3步)
+    elif epoch < 70:
+        pred_steps = 6   # 中间 20 个 epoch，学前 30 分钟 (6步)
+    else:
+        pred_steps = 12  # 之后学习全部 60 分钟 (12步)
 
     # 添加进度条 (仅主进程)
     # if rank == 0:
@@ -199,6 +222,10 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
 
         optimizer.zero_grad()
 
+        # 定义差分损失的权重 (可以尝试 1.0 ~ 5.0)
+        lambda_diff = 2.0
+        lambda_step1 = 0.5  # 强迫起点精准 (解决 Step 1 误差)
+
         # 混合精度训练
         if use_amp and amp_scaler is not None:
             with torch.amp.autocast('cuda'):  # 使用新的API,避免FutureWarning
@@ -206,7 +233,34 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
                 # out_batch = data_scaler.inverse_transform(out_batch)
                 y_batch_inv = y_batch[:, :, :, 0]
                 # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-                loss = criterion(out_batch, y_batch_inv)
+
+                # loss = criterion(out_batch, y_batch_inv)
+                # ==========================================
+                # 3. 应用切片：只计算前 pred_steps 的 Loss
+                # ==========================================
+                loss_pred = criterion(out_batch[:, :pred_steps, :], y_batch_inv[:, :pred_steps, :])
+
+                # --- 2. Step 1 强化 Loss (Anchor Accuracy) ---
+                # 单独把第1步拎出来再算一遍，强迫模型打好地基
+                loss_step1 = criterion(out_batch[:, 0:1, :], y_batch_inv[:, 0:1, :])
+                
+                # 3. 差分/趋势 Loss (First-order Difference)
+                if pred_steps > 1:
+                    # 计算相邻时间步的差值 (Delta)
+                    # Pred[t+1] - Pred[t]
+                    pred_diff = out_batch[:, 1:pred_steps, :] - out_batch[:, :pred_steps-1, :]
+                    # True[t+1] - True[t]
+                    true_diff = y_batch_inv[:, 1:pred_steps, :] - y_batch_inv[:, :pred_steps-1, :]
+                    
+                    # 这里的 criterion 通常是 Masked MAE
+                    loss_diff = criterion(pred_diff, true_diff)
+                    
+                    # 【核心修改】总 Loss 组合
+                    loss = loss_pred + lambda_diff * loss_diff + lambda_step1 * loss_step1
+                else:
+                    # 如果只预测1步，没法算差分，但可以加重 Step 1
+                    loss = loss_pred + lambda_step1 * loss_step1
+                # --- 修改结束 ---
 
             amp_scaler.scale(loss).backward()
             if clip_grad:
@@ -219,7 +273,31 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
             # out_batch = data_scaler.inverse_transform(out_batch)
             y_batch_inv = y_batch[:, :, :, 0]
             # y_batch_inv = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-            loss = criterion(out_batch, y_batch_inv)
+
+            # loss = criterion(out_batch, y_batch_inv)
+            # ==========================================
+            # 3. 应用切片：只计算前 pred_steps 的 Loss
+            # ==========================================
+            loss_pred = criterion(out_batch[:, :pred_steps, :], y_batch_inv[:, :pred_steps, :])
+
+            # --- 2. Step 1 强化 Loss ---
+            loss_step1 = criterion(out_batch[:, 0:1, :], y_batch_inv[:, 0:1, :])
+
+            # 2. 差分/趋势 Loss
+            if pred_steps > 1:
+                # 计算相邻时间步的差值
+                pred_diff = out_batch[:, 1:pred_steps, :] - out_batch[:, :pred_steps-1, :]
+                true_diff = y_batch_inv[:, 1:pred_steps, :] - y_batch_inv[:, :pred_steps-1, :]
+                
+                # 约束变化趋势
+                loss_diff = criterion(pred_diff, true_diff)
+                
+                # 【核心修改】总 Loss 组合
+                loss = loss_pred + lambda_diff * loss_diff + lambda_step1 * loss_step1
+            else:
+                loss = loss_pred + lambda_step1 * loss_step1
+
+            # --- 修改结束 ---
 
             loss.backward()
             if clip_grad:
@@ -233,10 +311,18 @@ def train_one_epoch(model, trainset_loader, optimizer, criterion,
 
 
 @torch.no_grad()
-def eval_model(model, valset_loader, criterion, rank, data_scaler):
+def eval_model(model, valset_loader, criterion, rank, data_scaler, epoch):
     """评估模型"""
     model.eval()
     batch_loss_list = []
+
+    # 保持和 train 一致的课程逻辑
+    if epoch < 40:
+        pred_steps = 3
+    elif epoch < 70:
+        pred_steps = 6
+    else:
+        pred_steps = 12
 
     for batch in valset_loader:
         x_batch, y_batch = batch
@@ -248,7 +334,10 @@ def eval_model(model, valset_loader, criterion, rank, data_scaler):
         # out_batch = data_scaler.inverse_transform(out_batch)
         y_batch = y_batch[:, :, :, 0]
         # y_batch = data_scaler.inverse_transform(y_batch[:, :, :, 0])
-        loss = criterion(out_batch, y_batch)
+        
+        # loss = criterion(out_batch, y_batch)
+        # 【关键】只计算当前难度的 Loss
+        loss = criterion(out_batch[:, :pred_steps, :], y_batch[:, :pred_steps, :])
         batch_loss_list.append(loss.item())
 
     return np.mean(batch_loss_list)
@@ -407,6 +496,12 @@ def main_worker(rank, world_size, config):
 
     # 构建邻接矩阵
     adj_mx = np.zeros((num_nodes, num_nodes), dtype=float)
+    # 【修正 1】初始化为无穷大，而不是 0！
+    # 0 代表距离最近，inf 代表没有连接
+    dist_mx = np.full((num_nodes, num_nodes), np.inf, dtype=float)
+    # 【修正 2】对角线距离设为 0 (自己到自己)
+    for k in range(num_nodes):
+        dist_mx[k, k] = 0
     with open(csv_file, 'r') as f:
         f.readline()
         reader = csv.reader(f)
@@ -417,9 +512,42 @@ def main_worker(rank, world_size, config):
             if i in id_dict and j in id_dict:
                 idx_i = id_dict[i]
                 idx_j = id_dict[j]
-                # 无权矩阵
-                adj_mx[idx_i][idx_j] = 1
-                adj_mx[idx_j][idx_i] = 1
+                 # 填入真实物理距离
+                dist_mx[idx_i][idx_j] = distance
+                dist_mx[idx_j][idx_i] = distance
+    
+    # 3. 计算标准差 (Sigma)
+    # 只取有限的距离值计算标准差
+    distances = dist_mx[~np.isinf(dist_mx)]
+    std = distances.std()
+    
+    # 4. 应用高斯核公式: W_ij = exp( - (dist_ij^2) / (std^2) )
+    # 距离越小，结果越接近 1；距离越大，结果越接近 0
+    adj_mx = np.exp(-np.square(dist_mx / std))
+
+    # 3. 【修改点】应用 k-NN 策略 (保留概率最大的 k 个邻居)
+    # PEMS08 节点数 170，k 取 10 或 20 比较合适
+    k = 10 
+    
+    # 对每一行(每个节点)，找到权重最大的 k 个值的索引
+    # argsort 从小到大排，取最后 k 个
+    topk_indices = np.argsort(adj_mx, axis=1)[:, -k:]
+    
+    # 创建一个新的稀疏矩阵
+    new_adj = np.zeros_like(adj_mx)
+    for i in range(adj_mx.shape[0]):
+        new_adj[i, topk_indices[i]] = adj_mx[i, topk_indices[i]]
+        
+    # 重新归一化或直接使用 new_adj
+    adj_mx = new_adj
+    
+    # 确保对称性 (可选，GMAN 其实支持有向图，但无向图更稳)
+    adj_mx = np.maximum(adj_mx, adj_mx.T)
+
+    # 5. 阈值过滤 (Sparsification)
+    # 权重太小的边视为噪声，强制置为 0，保持矩阵稀疏性
+    # 0.1 是一个经验值，表示必须至少保留 10% 的相关性
+    # adj_mx[adj_mx < 0.1] = 0
 
     # if rank == 0:
     print(f"Graph loaded: {num_nodes} nodes, {int(np.sum(adj_mx > 0) / 2)} edges")
@@ -455,7 +583,7 @@ def main_worker(rank, world_size, config):
 
     # 优化器 (添加weight_decay支持L2正则化)
     weight_decay = config.training.get('weight_decay', 0.0)
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         params=gman_model.parameters(),
         lr=config.training.learning_rate,
         weight_decay=weight_decay
@@ -475,17 +603,26 @@ def main_worker(rank, world_size, config):
 
         # 添加Warmup
         if warmup_epochs > 0:
-            from torch.optim.lr_scheduler import LinearLR, SequentialLR
-            warmup_scheduler = LinearLR(
-                optimizer=optimizer,
-                start_factor=0.1,  # 从10%学习率开始
-                end_factor=1.0,    # 逐步增加到100%
-                total_iters=warmup_epochs
-            )
-            lr_scheduler = SequentialLR(
-                optimizer=optimizer,
-                schedulers=[warmup_scheduler, base_scheduler],
-                milestones=[warmup_epochs]
+            # from torch.optim.lr_scheduler import LinearLR, SequentialLR
+            # warmup_scheduler = LinearLR(
+            #     optimizer=optimizer,
+            #     start_factor=0.1,  # 从10%学习率开始
+            #     end_factor=1.0,    # 逐步增加到100%
+            #     total_iters=warmup_epochs
+            # )
+            # lr_scheduler = SequentialLR(
+            #     optimizer=optimizer,
+            #     schedulers=[warmup_scheduler, base_scheduler],
+            #     milestones=[warmup_epochs]
+            # )
+            lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+                optimizer,
+                max_lr=config.training.learning_rate,
+                epochs=config.training.max_epoch,
+                steps_per_epoch=len(train_loader),
+                pct_start=warmup_epochs / config.training.max_epoch, # 前10%时间用来热身
+                div_factor=10.0,
+                final_div_factor=100.0
             )
         else:
             lr_scheduler = base_scheduler
@@ -528,7 +665,8 @@ def main_worker(rank, world_size, config):
             print(f"  -> Using masked_huber_loss_weighted")
         else:
             # 标准Huber Loss
-            criterion = partial(masked_huber_loss, null_val=-1, delta=1.0)
+            # criterion = partial(masked_huber_loss, null_val=-1, delta=1.0)
+            criterion = nn.HuberLoss(delta=1.0)
     else:
         raise ValueError(f"Unknown loss function: {config.training.loss_func}")
 

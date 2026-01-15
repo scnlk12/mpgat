@@ -1,0 +1,9 @@
+Loading Data...
+train	x: (10714, 12, 170, 3), y: (10714, 12, 170, 3)
+eval	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+test	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+Running Naive Baseline Test...
+
+========== Naive Baseline (Persistence) ==========
+Step 1 | RMSE = 24.5010, MAE = 15.7910, MAPE = 9.1111
+Step 12| RMSE = 50.3327, MAE = 34.4236, MAPE = 20.2902

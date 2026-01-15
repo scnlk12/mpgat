@@ -1,0 +1,114 @@
+{'gpu': {'device_ids': [1], 'distributed': True, 'main_device': 0}, 'data': {'traffic_file': 'data/PEMS08/PEMS08.npz', 'train_ratio': 0.6, 'val_ratio': 0.2, 'test_ratio': 0.2, 'batch_size': 32}, 'model': {'input_dim': 3, 'P': 12, 'Q': 12, 'T': 288, 'L': 3, 'K': 8, 'd': 32, 'embed_dim': 64, 'skip_dim': 256, 'lape_dim': 64}, 'training': {'max_epoch': 1500, 'patience': 50, 'learning_rate': 0.002, 'clip_grad': 5, 'loss_func': 'huber', 'use_temporal_weighting': False, 'temporal_weight_scheme': 'progressive', 'use_cosine_annealing': True, 'lr_decay': False, 'lr_decay_rate': 0.3, 'lr_decay_step': '5,20,40,70', 'step_size': 100, 'gamma': 0.9, 'weight_decay': 0.0001, 'dropout': 0.3, 'warmup_epochs': 50}, 'logging': {'log_dir': './logs', 'tensorboard_dir': './runLog/mpgat', 'verbose': 1}, 'saving': {'model_dir': './saved_models', 'save_best': True}, 'misc': {'seed': 42, 'time_slot': 5, 'use_amp': False}}
+train	x: (10714, 12, 170, 3), y: (10714, 12, 170, 3)
+eval	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+test	x: (3571, 12, 170, 3), y: (3571, 12, 170, 3)
+2026-01-06-14-35-06	Epoch 1	Train Loss = 0.32623, Val Loss = 0.17304
+2026-01-06-14-37-14	Epoch 2	Train Loss = 0.05156, Val Loss = 0.05022
+2026-01-06-14-39-21	Epoch 3	Train Loss = 0.03185, Val Loss = 0.04618
+2026-01-06-14-41-28	Epoch 4	Train Loss = 0.02833, Val Loss = 0.04331
+2026-01-06-14-43-36	Epoch 5	Train Loss = 0.02554, Val Loss = 0.03999
+2026-01-06-14-45-43	Epoch 6	Train Loss = 0.02235, Val Loss = 0.03802
+2026-01-06-14-47-51	Epoch 7	Train Loss = 0.02067, Val Loss = 0.03716
+2026-01-06-14-49-58	Epoch 8	Train Loss = 0.01951, Val Loss = 0.03623
+2026-01-06-14-52-05	Epoch 9	Train Loss = 0.01920, Val Loss = 0.03489
+2026-01-06-14-54-13	Epoch 10	Train Loss = 0.01789, Val Loss = 0.03449
+2026-01-06-14-56-20	Epoch 11	Train Loss = 0.01752, Val Loss = 0.03383
+2026-01-06-14-58-27	Epoch 12	Train Loss = 0.01687, Val Loss = 0.03423
+2026-01-06-15-00-34	Epoch 13	Train Loss = 0.01664, Val Loss = 0.03349
+2026-01-06-15-02-42	Epoch 14	Train Loss = 0.01628, Val Loss = 0.03272
+2026-01-06-15-04-49	Epoch 15	Train Loss = 0.01586, Val Loss = 0.03309
+2026-01-06-15-06-56	Epoch 16	Train Loss = 0.01572, Val Loss = 0.03209
+2026-01-06-15-09-04	Epoch 17	Train Loss = 0.01524, Val Loss = 0.03255
+2026-01-06-15-11-11	Epoch 18	Train Loss = 0.01515, Val Loss = 0.03154
+2026-01-06-15-13-18	Epoch 19	Train Loss = 0.01512, Val Loss = 0.03194
+2026-01-06-15-15-26	Epoch 20	Train Loss = 0.01476, Val Loss = 0.03122
+2026-01-06-15-17-33	Epoch 21	Train Loss = 0.01470, Val Loss = 0.03188
+2026-01-06-15-19-40	Epoch 22	Train Loss = 0.01459, Val Loss = 0.03185
+2026-01-06-15-21-48	Epoch 23	Train Loss = 0.01438, Val Loss = 0.03129
+2026-01-06-15-23-55	Epoch 24	Train Loss = 0.01418, Val Loss = 0.03164
+2026-01-06-15-26-02	Epoch 25	Train Loss = 0.01417, Val Loss = 0.03129
+2026-01-06-15-28-09	Epoch 26	Train Loss = 0.01393, Val Loss = 0.03139
+2026-01-06-15-30-17	Epoch 27	Train Loss = 0.01404, Val Loss = 0.03103
+2026-01-06-15-32-24	Epoch 28	Train Loss = 0.01373, Val Loss = 0.03077
+2026-01-06-15-34-31	Epoch 29	Train Loss = 0.01344, Val Loss = 0.03120
+2026-01-06-15-36-38	Epoch 30	Train Loss = 0.01342, Val Loss = 0.03096
+2026-01-06-15-38-45	Epoch 31	Train Loss = 0.01342, Val Loss = 0.03086
+2026-01-06-15-40-53	Epoch 32	Train Loss = 0.01312, Val Loss = 0.03083
+2026-01-06-15-43-00	Epoch 33	Train Loss = 0.01331, Val Loss = 0.03101
+2026-01-06-15-45-07	Epoch 34	Train Loss = 0.01297, Val Loss = 0.03084
+2026-01-06-15-47-14	Epoch 35	Train Loss = 0.01292, Val Loss = 0.03128
+2026-01-06-15-49-21	Epoch 36	Train Loss = 0.01276, Val Loss = 0.03117
+2026-01-06-15-51-29	Epoch 37	Train Loss = 0.01294, Val Loss = 0.03044
+2026-01-06-15-53-36	Epoch 38	Train Loss = 0.01266, Val Loss = 0.03074
+2026-01-06-15-55-43	Epoch 39	Train Loss = 0.01264, Val Loss = 0.03209
+2026-01-06-15-57-50	Epoch 40	Train Loss = 0.01245, Val Loss = 0.03111
+2026-01-06-15-59-57	Epoch 41	Train Loss = 0.01249, Val Loss = 0.03093
+2026-01-06-16-02-05	Epoch 42	Train Loss = 0.01233, Val Loss = 0.03110
+2026-01-06-16-04-12	Epoch 43	Train Loss = 0.01226, Val Loss = 0.03047
+2026-01-06-16-06-19	Epoch 44	Train Loss = 0.01220, Val Loss = 0.03082
+2026-01-06-16-08-26	Epoch 45	Train Loss = 0.01213, Val Loss = 0.03128
+2026-01-06-16-10-33	Epoch 46	Train Loss = 0.01199, Val Loss = 0.03155
+2026-01-06-16-12-40	Epoch 47	Train Loss = 0.01194, Val Loss = 0.03129
+2026-01-06-16-14-47	Epoch 48	Train Loss = 0.01180, Val Loss = 0.03136
+2026-01-06-16-16-54	Epoch 49	Train Loss = 0.01176, Val Loss = 0.03169
+2026-01-06-16-19-02	Epoch 50	Train Loss = 0.01186, Val Loss = 0.03107
+2026-01-06-16-21-09	Epoch 51	Train Loss = 0.01172, Val Loss = 0.03149
+2026-01-06-16-23-16	Epoch 52	Train Loss = 0.01152, Val Loss = 0.03153
+2026-01-06-16-25-23	Epoch 53	Train Loss = 0.01146, Val Loss = 0.03169
+2026-01-06-16-27-30	Epoch 54	Train Loss = 0.01134, Val Loss = 0.03156
+2026-01-06-16-29-37	Epoch 55	Train Loss = 0.01132, Val Loss = 0.03169
+2026-01-06-16-31-45	Epoch 56	Train Loss = 0.01130, Val Loss = 0.03151
+2026-01-06-16-33-52	Epoch 57	Train Loss = 0.01119, Val Loss = 0.03226
+2026-01-06-16-35-59	Epoch 58	Train Loss = 0.01119, Val Loss = 0.03099
+2026-01-06-16-38-06	Epoch 59	Train Loss = 0.01103, Val Loss = 0.03155
+2026-01-06-16-40-14	Epoch 60	Train Loss = 0.01092, Val Loss = 0.03109
+2026-01-06-16-42-21	Epoch 61	Train Loss = 0.01093, Val Loss = 0.03166
+2026-01-06-16-44-28	Epoch 62	Train Loss = 0.01083, Val Loss = 0.03153
+2026-01-06-16-46-35	Epoch 63	Train Loss = 0.01087, Val Loss = 0.03112
+2026-01-06-16-48-42	Epoch 64	Train Loss = 0.01073, Val Loss = 0.03161
+2026-01-06-16-50-49	Epoch 65	Train Loss = 0.01061, Val Loss = 0.03154
+2026-01-06-16-52-57	Epoch 66	Train Loss = 0.01061, Val Loss = 0.03137
+2026-01-06-16-55-04	Epoch 67	Train Loss = 0.01056, Val Loss = 0.03119
+2026-01-06-16-57-11	Epoch 68	Train Loss = 0.01039, Val Loss = 0.03134
+2026-01-06-16-59-18	Epoch 69	Train Loss = 0.01043, Val Loss = 0.03132
+2026-01-06-17-01-25	Epoch 70	Train Loss = 0.01038, Val Loss = 0.03179
+2026-01-06-17-03-32	Epoch 71	Train Loss = 0.01022, Val Loss = 0.03155
+2026-01-06-17-05-40	Epoch 72	Train Loss = 0.01018, Val Loss = 0.03172
+2026-01-06-17-07-47	Epoch 73	Train Loss = 0.01025, Val Loss = 0.03207
+2026-01-06-17-09-54	Epoch 74	Train Loss = 0.01024, Val Loss = 0.03161
+2026-01-06-17-12-01	Epoch 75	Train Loss = 0.01001, Val Loss = 0.03150
+2026-01-06-17-14-08	Epoch 76	Train Loss = 0.00993, Val Loss = 0.03151
+2026-01-06-17-16-16	Epoch 77	Train Loss = 0.00998, Val Loss = 0.03170
+2026-01-06-17-18-23	Epoch 78	Train Loss = 0.00997, Val Loss = 0.03189
+2026-01-06-17-20-30	Epoch 79	Train Loss = 0.00993, Val Loss = 0.03210
+2026-01-06-17-22-37	Epoch 80	Train Loss = 0.00975, Val Loss = 0.03171
+2026-01-06-17-24-44	Epoch 81	Train Loss = 0.00968, Val Loss = 0.03165
+2026-01-06-17-26-51	Epoch 82	Train Loss = 0.00970, Val Loss = 0.03131
+2026-01-06-17-28-58	Epoch 83	Train Loss = 0.00967, Val Loss = 0.03142
+2026-01-06-17-31-05	Epoch 84	Train Loss = 0.00959, Val Loss = 0.03223
+2026-01-06-17-33-13	Epoch 85	Train Loss = 0.00947, Val Loss = 0.03149
+2026-01-06-17-35-20	Epoch 86	Train Loss = 0.00951, Val Loss = 0.03166
+2026-01-06-17-37-27	Epoch 87	Train Loss = 0.00947, Val Loss = 0.03143
+Early stopping at epoch: 87
+Best at epoch 37:
+Train Loss = 0.01294
+Train RMSE = 270.09119, MAE = 229.94194, MAPE = 15125.97461
+Val Loss = 0.03044
+Val RMSE = 273.15836, MAE = 232.65517, MAPE = 11901.53809
+Saved Model: ./saved_models/GMAN-PEMS08-2026-01-06-14-32-58.pt
+--------- Test ---------
+All Steps RMSE = 25.02156, MAE = 15.90691, MAPE = 9.45234
+Step  1 RMSE = 20.73196, MAE = 13.63936, MAPE = 8.28843
+Step  2 RMSE = 22.06355, MAE = 14.43278, MAPE = 8.69102
+Step  3 RMSE = 23.19587, MAE = 15.07935, MAPE = 9.15162
+Step  4 RMSE = 23.90748, MAE = 15.35920, MAPE = 9.23601
+Step  5 RMSE = 24.54665, MAE = 15.55400, MAPE = 9.06089
+Step  6 RMSE = 25.09757, MAE = 15.86841, MAPE = 9.43351
+Step  7 RMSE = 25.66393, MAE = 16.13163, MAPE = 9.36040
+Step  8 RMSE = 26.04979, MAE = 16.40859, MAPE = 9.57250
+Step  9 RMSE = 26.29089, MAE = 16.65815, MAPE = 9.84987
+Step 10 RMSE = 26.93541, MAE = 17.04434, MAPE = 10.10710
+Step 11 RMSE = 27.18319, MAE = 17.20753, MAPE = 10.31941
+Step 12 RMSE = 27.59351, MAE = 17.49954, MAPE = 10.35755
+
+Inference time: 13.00 s

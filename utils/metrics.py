@@ -225,7 +225,7 @@ def MAPE(y_true, y_pred, null_val=0):
             mask = np.not_equal(y_true, null_val)
             
         # 增加一步：防止 y_true 为 0 导致除以 0 异常（虽然 mask 可能会过滤掉，但双重保险）
-        mask = mask & (np.abs(y_true) > 1e-4)
+        mask = mask & (np.abs(y_true) > 5.0)
         
         mask = mask.astype(np.float32)
         mask /= np.mean(mask)

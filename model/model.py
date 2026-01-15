@@ -52,15 +52,30 @@ class GMAN(nn.Module):
             ) for _ in range(L)
         ])
 
+        # 1. 归一化层 (防止 skip 累加后数值过大)
+        self.skip_norm = nn.LayerNorm(self.skip_dim)
+
         # 修复: 使用P而不是硬编码的12,适应不同的历史窗口长度
         self.end_conv1 = nn.Conv2d(
             in_channels=P, out_channels=Q, kernel_size=1, bias=True,
         )
+
+        # 3. 【新增】特征维度投影 (Hidden Layer): skip_dim -> skip_dim/2
+        # 增加非线性能力，帮助拟合长时依赖
+        self.end_conv_hidden = nn.Conv2d(
+            in_channels=self.skip_dim, out_channels=self.skip_dim // 2, kernel_size=1, bias=True
+        )
+
         self.end_conv2 = nn.Conv2d(
-            in_channels=self.skip_dim, out_channels=1, kernel_size=1, bias=True,
+            in_channels=self.skip_dim // 2, out_channels=1, kernel_size=1, bias=True,
         )
 
     def forward(self, x, TE):
+        # 【关键新增 1】获取最近的一个时间步的流量作为 Base
+        # x[:, -1, :, 0] 代表 P 个时间步里的最后一步的流量值
+        # 维度变换: (B, N) -> (B, 1, N) -> (B, Q, N)
+        latest_flow = x[:, -1, :, 0].unsqueeze(1).expand(-1, self.Q, -1)
+
         D = self.K * self.d
         # input: transform from model_dim (3) to K*d (64)
         x = self.STE_emb(x, TE)
@@ -72,11 +87,47 @@ class GMAN(nn.Module):
             x = att(x, TE, self.LAP, self.node_embeddings)
             skip += self.skip_convs[i](x.permute(0, 3, 2, 1))
 
-        # output
-        skip = self.end_conv1(F.leaky_relu(skip.permute(0, 3, 2, 1)))
-        skip = self.end_conv2(F.leaky_relu(skip.permute(0, 3, 2, 1)))
+        # --- Step A: LayerNorm ---
+        skip = skip.permute(0, 3, 2, 1) 
+        skip = self.skip_norm(skip)
 
-        return skip.permute(0, 3, 2, 1).squeeze(-1)
+        # # output
+        # skip = self.end_conv1(F.relu(skip.permute(0, 3, 2, 1)))
+        # skip = self.end_conv2(F.relu(skip.permute(0, 3, 2, 1)))
+
+        # # 【关键新增 2】残差连接
+        # # 模型现在只需要预测“相对于上一时刻的变化量”，这比预测绝对值容易得多 
+        # return skip.permute(0, 3, 2, 1).squeeze(-1) + latest_flow
+
+        # --- Step B: Time Projection (P -> Q) ---
+        # Input to Conv2d: (B, In_C=P, H=N, W=skip_dim)
+        # 使用 LeakyReLU 替代 ReLU
+        skip = self.end_conv1(F.leaky_relu(skip, negative_slope=0.1))
+        # Result: (B, Q, N, skip_dim)
+
+        # --- Step C: Feature Projection (Hidden Layer) ---
+        # 我们需要在 Feature 维度 (skip_dim) 上做卷积
+        # Permute to: (B, In_C=skip_dim, H=N, W=Q)
+        skip = skip.permute(0, 3, 2, 1)
+        
+        # skip_dim -> skip_dim / 2
+        skip = self.end_conv_hidden(F.leaky_relu(skip, negative_slope=0.1))
+
+        # 【新增】Dropout (防止过拟合)
+        # dropout 0.3 左右
+        skip = F.dropout(skip, p=0.3, training=self.training)
+        # Result: (B, skip_dim/2, N, Q)
+
+        # --- Step D: Final Output ---
+        # skip_dim / 2 -> 1
+        prediction = self.end_conv2(F.leaky_relu(skip, negative_slope=0.1))
+        # Result: (B, 1, N, Q)
+
+        # --- Step E: Reshape ---
+        # (B, 1, N, Q) -> (B, Q, N)
+        prediction = prediction.squeeze(1).permute(0, 2, 1)
+        # 4. 加上残差
+        return prediction + latest_flow
 
 
 class STEmbedding(nn.Module):
@@ -88,10 +139,18 @@ class STEmbedding(nn.Module):
 
         self.x_forward = nn.Sequential(
             nn.Linear(model_dim, self.K * self.d),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Linear(self.K * self.d, 4 * self.K * self.d),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
+        )
+
+        # 2. 【关键新增】时间特征映射 (TE -> Hidden)
+        # TE 维度通常是 2 (Time of Day, Day of Week)
+        self.te_forward = nn.Sequential(
+            nn.Linear(2, self.K * self.d), 
+            nn.ReLU(),
+            nn.Linear(self.K * self.d, self.K * self.d)
         )
 
         # Ea (STAEformer论文) 感觉类似位置编码
@@ -107,9 +166,14 @@ class STEmbedding(nn.Module):
         adp_emb = self.adaptive_embedding.expand(
             size=(B, *self.adaptive_embedding.shape)
         )  # (batch_size, in_steps, num_nodes, adaptive_embedding_dim)
-        x = self.x_forward(x)
+        x_emb = self.x_forward(x)
+        # 2. 【关键修复】编码时间并加入
+        # 你的代码里之前把这一步漏了！
+        te_emb = self.te_forward(TE) 
+        
         # 时空adaptive embedding 类似于位置编码
-        x += adp_emb
+        # 融合：流量 + 时间 + 空间位置
+        x = x_emb + te_emb + adp_emb
         x = self.dropout(x)
         return x
 
@@ -129,7 +193,7 @@ class FeedForward(nn.Module):
             x = self.linear[i](x)
             if i != self.L - 1:
                 # x = F.relu(x)
-                x = F.leaky_relu(x)
+                x = F.relu(x)
         if self.residual_add:
             x += inputs
         return x
@@ -193,7 +257,7 @@ class spatialAttention(nn.Module):
         self.two_layer_feed_forward = nn.Sequential(
             nn.Linear(K * d, 4 * self.K * self.d),
             # nn.ReLU(),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
@@ -219,31 +283,46 @@ class spatialAttention(nn.Module):
         value = value.permute(0, 1, 3, 2, 4).contiguous().view(B * T * self.K, N, self.d)
 
         attention = torch.matmul(query, key) / math.sqrt(self.d)
-        raw = attention
+        # raw = attention
         # mask (consider graph structure)
         # torch.mm 矩阵乘法
-        supports = F.softmax(F.leaky_relu(torch.mm(node_embeddings, node_embeddings.transpose(0, 1))), dim=1)
-        # 二值化support矩阵 （感觉可以改阈值）
-        # supports = supports > 0.5
-        supports = supports.unsqueeze(0).expand(B, -1, -1)
-        lap = lapmatrix.unsqueeze(0).expand(B, -1, -1)
 
-        adj = (lapmatrix != 0).float()
-        mask = (adj == 0) * (-1e9)
-        mask = mask.unsqueeze(0).expand(B, -1, -1)
+        # supports = F.softmax(F.relu(torch.mm(node_embeddings, node_embeddings.transpose(0, 1))), dim=1)
+        # # 二值化support矩阵 （感觉可以改阈值）
+        # # supports = supports > 0.5
+        # supports = supports.unsqueeze(0).expand(B, -1, -1)
 
-        supports = supports.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
-        supports = supports.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
-        lap = lap.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
-        lap = lap.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
-        mask = mask.unsqueeze(1).unsqueeze(2)
-        mask = mask.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+        # lap = lapmatrix.unsqueeze(0).expand(B, -1, -1)
 
+        # adj = (lapmatrix != 0).float()
+        # mask = (adj == 0) * (-1e9)
+        # mask = mask.unsqueeze(0).expand(B, -1, -1)
+
+        # supports = supports.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+        # supports = supports.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+        # lap = lap.unsqueeze(1).unsqueeze(2)  # [B,1,1,N,N]
+        # lap = lap.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+        # mask = mask.unsqueeze(1).unsqueeze(2)
+        # mask = mask.expand(B, T, self.K, N, N).contiguous().view(B * T * self.K, N, N)
+
+        # 2. 动态图结构 (Learnable Structure)
+        # 表示：根据长期训练，A 和 B 的功能很像 (例如都是十字路口)
+        # 去掉 Softmax，直接用点积作为 Logits 的 Bias
+        node_sim = torch.mm(node_embeddings, node_embeddings.transpose(0, 1))
+        
+        # 扩展维度以匹配 attention: (B*T*K, N, N) 只需要 unsqueeze 到 [1, N, N]，PyTorch 会自动广播
+        node_sim = node_sim.unsqueeze(0)
+        # 3. 静态图结构 (Physical Distance)
+        # 表示：A 和 B 物理上挨着
+        # lapmatrix 已经是高斯核权重了 (0~1之间) 直接广播即可
+        lap = lapmatrix.unsqueeze(0)
+        
         # attentionS = attention * supports
         # attentionL = attention * lap
         # attention = attentionS + attentionL
         # TODO logits = raw + self.alpha * attentionS + self.beta * attentionL + mask
-        logits = raw + self.alpha * supports + self.beta * lap + mask
+        # logits = raw + self.alpha * supports + self.beta * lap + mask
+        logits = attention + self.alpha * node_sim + self.beta * lap
 
         attention = torch.softmax(logits, dim=-1)
         attention = self.attn_dropout(attention)
@@ -275,7 +354,7 @@ class Inception_Temporal_Layer(nn.Module):
         self.branches = nn.ModuleList([
             nn.Sequential(
                 CausalConv1d(Hid_channels, Hid_channels, k),
-                nn.LeakyReLU(),
+                nn.ReLU(),
             )
             for k in kernels
         ])
@@ -372,7 +451,7 @@ class temporalAttention(nn.Module):
 
         self.two_layer_feed_forward = nn.Sequential(
             nn.Linear(K * d, 4 * self.K * self.d),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Linear(4 * self.K * self.d, self.K * self.d),
         )
 
@@ -451,7 +530,7 @@ class gatedFusion(nn.Module):
 
         self.gate = nn.Sequential(
             nn.Linear(2 * D, D),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.Linear(D, D),
         )
 

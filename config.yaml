@@ -33,7 +33,7 @@ model:
   # 一天的时间步数 (288 = 24小时 * 12个5分钟)
   T: 288
   # STAttBlock层数
-  L: 1
+  L: 3
   # 注意力头数
   K: 8
   # 每个注意力头的维度
@@ -56,16 +56,16 @@ training:
   patience: 50         # 原50 → 80
   # 初始学习率
   # 优化: 降低学习率以获得更稳定的训练
-  learning_rate: 0.002
+  learning_rate: 0.001
   # 梯度裁剪阈值
   clip_grad: 5
   # 损失函数 (mae, mse, masked_mae, huber)
   # 优化: Huber损失对离群点更鲁棒,适合交通数据中的异常值
-  loss_func: 'mse'    # 原'masked_mae' → 'huber'
+  loss_func: 'masked_mae'    # 原'masked_mae' → 'huber'
 
   # 时间步加权损失 (对未来步赋予更高权重,改善长期预测)
   use_temporal_weighting: false  # 是否启用时间步加权
-  temporal_weight_scheme: 'progressive'  # 权重方案: progressive, linear, exponential
+  temporal_weight_scheme: 'exponential'  # 权重方案: progressive, linear, exponential
   # progressive: 前4步1.0, 中4步1.2, 后4步1.5
   # linear: 从1.0线性增长到2.0
   # exponential: 从1.0指数增长到1.5
